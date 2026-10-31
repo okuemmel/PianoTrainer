@@ -1,5 +1,6 @@
 #include "WiFiManager.h"
 
+#include <ESPmDNS.h>
 #include <esp_wifi.h>
 
 namespace {
@@ -72,9 +73,10 @@ void WiFiManager::setupAP() {
 void WiFiManager::begin() {
   WiFi.onEvent(logWifiEvent);
   WiFi.persistent(false);
+  WiFi.setHostname(config.hostname.c_str());
   WiFi.mode(WIFI_STA);
   configureRadio();
-  WiFi.setHostname("midi-trainer");
+  Serial.printf("[WLAN] Hostname: %s\n", config.hostname.c_str());
   WiFi.setAutoReconnect(true);
   if (config.ssid.isEmpty()) {
     state = "Einrichtung erforderlich";
@@ -110,6 +112,16 @@ void WiFiManager::loop() {
       Serial.println(WiFi.localIP());
       connectedAt = millis();
     }
+    if (!mdnsActive && (!mdnsAttempted || millis() - mdnsAttemptAt >= 10000)) {
+      mdnsAttempted = true;
+      mdnsAttemptAt = millis();
+      if (MDNS.begin(config.hostname.c_str())) {
+        mdnsActive = MDNS.addService("http", "tcp", 80);
+        if (!mdnsActive) MDNS.end();
+      }
+      Serial.printf("[mDNS] %s: http://%s.local/\n", mdnsActive ? "Aktiv" : "Start fehlgeschlagen",
+                    config.hostname.c_str());
+    }
     wasConnected = true;
     if (connecting) {
       if (candidate && !config.saveWifi(pendingSsid, pendingPassword)) {
@@ -132,6 +144,9 @@ void WiFiManager::loop() {
       ap = false;
     }
   } else {
+    if (mdnsActive) MDNS.end();
+    mdnsActive = false;
+    mdnsAttempted = false;
     if (wasConnected) {
       wasConnected = false;
       connecting = true;

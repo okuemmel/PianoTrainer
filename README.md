@@ -1,5 +1,9 @@
 # MIDI LED Piano Trainer · ESP32-C3 SuperMini
 
+Dieses Projekt ist **vibe coded**: Es entsteht im Dialog mit einem KI-Coding-Agenten, der große Teile des Codes und der Tests erzeugt. Die dokumentierten Prüfungen zeigen, was tatsächlich getestet wurde; sie ersetzen keine vollständige Erprobung am Instrument.
+
+Der Trainer soll dabei helfen, **Klavier oder Keyboard zu lernen**. Dazu wird eine LED-Leiste auf das Keyboard beziehungsweise Klavier geklebt und so ausgerichtet, dass die LEDs die zugehörigen Tasten markieren. Bei Übungen und MIDI-Stücken zeigen die LEDs an, welche Tasten als Nächstes gespielt werden sollen. Die optionale Notenansicht hilft zusätzlich beim Notenlesen. Die aktuelle C3-Version verwendet simulierte MIDI-Eingaben über die virtuelle Tastatur; die Anbindung eines echten Instruments ist eine spätere Erweiterung.
+
 Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mit 4 MB Flash** und einen WS2812B-Streifen. Die Firmware bietet WLAN-Einrichtung, lokale deutsche Weboberfläche, persistente LED-Konfiguration, Animationen und eine virtuelle, mehrstimmige MIDI-Tastatur. Für Phase 1 wird kein MIDI-Kabel benötigt.
 
 ## Hardware anschließen
@@ -144,9 +148,9 @@ Für den ESP32-S3 später ein eigenes Boardprofil und PlatformIO-Environment anl
 
 Die Zeitwertung verwendet den Empfangszeitpunkt am ESP32. WLAN- und Browserlatenz fließen damit in das Ergebnis ein; für die Simulation ist ein großzügiges Zeitfenster sinnvoll. Pro Gerät gibt es einen gemeinsamen Trainingszustand; mehrere Browser sind keine unabhängigen Spieler. Übungen und Ergebnisse liegen im RAM und werden bei Neustart verworfen.
 
-### Virtuelle LED-Leiste (Firmware 1.1.1)
+### Virtuelle LED-Leiste und Töne (Firmware 1.2.0)
 
-Über der virtuellen Tastatur ist im freien Spiel und im Training die konfigurierte LED-Leiste sichtbar. Sie zeigt die physischen LED-Indizes ab 0 und die vom ESP32 berechneten Farben. Zielnoten, gespielte Noten, Fehler und Testfarben werden aus dem aktuellen, bereits helligkeitsskalierten Ausgabepuffer übernommen. GRB/RGB wird für die Anzeige in RGB umgerechnet. Zur besseren Sichtbarkeit ist die Bildschirmdarstellung aufgehellt; sie ist keine Messung des elektrischen Signals oder der tatsächlichen Leuchtstärke.
+Über jeder weißen und schwarzen Taste befindet sich genau eine virtuelle LED-Anzeige, jeweils in der Tastenmitte. Tastatur und LEDs scrollen gemeinsam. Nicht zugeordnete Tasten zeigen „–“; nicht auf die sichtbare Tastatur abgebildete Streifen-LEDs werden hier nicht angezeigt. Bei gemeinsam genutzten LEDs zeigen mehrere Tasten denselben physischen LED-Pufferwert. Die Leiste zeigt die physischen LED-Indizes ab 0 und die vom ESP32 berechneten Farben. Zielnoten, gespielte Noten, Fehler und Testfarben werden aus dem aktuellen, bereits helligkeitsskalierten Ausgabepuffer übernommen. GRB/RGB wird für die Anzeige in RGB umgerechnet. Zur besseren Sichtbarkeit ist die Bildschirmdarstellung aufgehellt; sie ist keine Messung des elektrischen Signals oder der tatsächlichen Leuchtstärke.
 
 Die LED-Beschreibungen enthalten die zugehörigen MIDI-Noten. Startoffset, umgekehrte Reihenfolge und mehrfach zugeordnete Noten werden berücksichtigt. Die Vorschau unterstützt 1–300 LEDs und wandert mit der Tastatur zwischen Dashboard und Training. Antworten auf MIDI-, Trainings-, Konfigurations- und LED-Befehle enthalten den aktuellen Farbzustand, sodass Tasteneingaben unmittelbar aktualisiert werden. Weitere Änderungen werden über die Statusabfrage abgeglichen; kurze Taktimpulse können zwischen zwei Abfragen liegen.
 
@@ -156,9 +160,9 @@ Die API liefert unter `leds` Anzahl, GPIO, Ausgabehelligkeit und `frame` als sec
 
 Unter Training eine `.mid`/`.midi`-Datei wählen, Importkanal und bei Bedarf Transposition einstellen, dann **Datei als Übung übernehmen**. Anschließend oben die importierte Übung starten. Der Import läuft vollständig lokal im Browser; die Rohdatei wird nicht auf den ESP hochgeladen oder persistent gespeichert.
 
-Unterstützt werden Standard-MIDI-Dateien **Format 0 und 1**, PPQN-Zeitbasis, Running Status, Note On/Off und gleichzeitig angeschlagene Noten aus mehreren Spuren. Grenzen: 256 KiB, 64 Spuren, 20.000 Ereignisse, 128 Noteneinsätze und acht gleichzeitig angeschlagene Noten. Kanal 0 importiert alle Kanäle außer Schlagzeugkanal 10; ein einzelner Kanal kann gezielt ausgewählt werden. SMPTE-Zeitbasis und Format 2 werden mit einer verständlichen Meldung abgewiesen.
+Unterstützt werden Standard-MIDI-Dateien **Format 0 und 1**, PPQN-Zeitbasis, Running Status, Note On/Off und gleichzeitig angeschlagene Noten aus mehreren Spuren. Grenzen: 2 MiB, 64 Spuren und 250.000 Ereignisse im Browser. Große Dateien werden in wählbaren Abschnitten von maximal 128 Einsätzen mit acht gleichzeitigen Noten geübt; nur der Abschnitt wird an den C3 gesendet. „Abschnitt ab Einsatz“ ist 1-basiert (1, 129, 257 usw.); nach Ändern erneut übernehmen und oben starten. Die Gesamtzahl wird angezeigt. Lange Pausen werden in zulässige Pausenschritte aufgeteilt und zählen mit. Standardmäßig werden Noten außerhalb des konfigurierten Tastaturbereichs ausgelassen und gezählt. Der Filter ist abschaltbar; dann kann der ESP32 nicht spielbare Übungen ablehnen. Noteneinsätze werden auf ein 1/32-Notenraster gerundet, um versetzte Anschläge zusammenzufassen und den Mindestabstand der Trainingsengine einzuhalten; die musikalische Feinzeit wird dadurch vereinfacht. Kanal 0 importiert alle Kanäle außer Schlagzeugkanal 10; ein einzelner Kanal kann gezielt ausgewählt werden. SMPTE-Zeitbasis und Format 2 werden mit einer verständlichen Meldung abgewiesen.
 
-Der Import erzeugt Übungen aus den Note-On-Einsätzen. Gehaltene Begleitnoten, Pedal und Note-Off-Dauern werden nicht als eigene Aufgaben ausgewertet. Vorlauf wird entfernt und durch den Trainings-Einzähler ersetzt. Einsätze dürfen 1/8 bis 16 Viertelschläge auseinanderliegen; Tempoänderungen werden bewusst auf das gewählte feste Übungstempo vereinheitlicht. Umfangreiche Stücke vorher in kurze Übungsausschnitte teilen. [MIDI Association: Standard MIDI Files](https://midi.org/standard-midi-files).
+Der Import erzeugt Übungen aus den Note-On-Einsätzen. Gehaltene Begleitnoten, Pedal und Note-Off-Dauern werden nicht als eigene Aufgaben ausgewertet. Vorlauf wird entfernt und durch den Trainings-Einzähler ersetzt. Einsätze dürfen 1/8 bis 16 Viertelschläge auseinanderliegen; Tempoänderungen werden bewusst auf das gewählte feste Übungstempo vereinheitlicht. Umfangreiche Stücke direkt im Import über den Start-Einsatz abschnittsweise üben. [MIDI Association: Standard MIDI Files](https://midi.org/standard-midi-files).
 
 Die portable Zustandsmaschine liegt in `include/TrainingEngine.h`, die eingebauten Übungen in `include/TrainingCatalog.h`, die LED-/Zeit-Anbindung in `TrainingController` und der Importer in `data/midi-file.js`. `GET /api/training` liefert Zustand und Übungskatalog; `POST /api/training` verarbeitet `start`, `pause`, `resume`, `free` und `stop` mit derselben Authentifizierung wie die übrige API. MIDI-Antworten und `/api/status` enthalten den aktuellen Trainingszustand.
 
@@ -177,9 +181,33 @@ node --check data/app.js
 
 Die konkreten Ergebnisse sowie verbleibende Hardwareprüfungen stehen in [TESTING.md](TESTING.md).
 
+Geplante Importquellen (Nextcloud-Verzeichnis und MIDIsss-Suche) stehen in [TODO.md](TODO.md).
+
 ## Technische Quellen
 
 - [Espressif ESP32-C3 Datasheet](https://documentation.espressif.com/ESP32-C3_Datasheet_en.pdf): GPIO/Strapping, USB Serial/JTAG und RMT.
 - [SuperMini-Schaltplan / Pinout](https://dl.artronshop.co.th/ESP32-C3%20SuperMini%20datasheet.pdf): übliche Boardbeschaltung; Herstellerklone können abweichen.
 - [PlatformIO C3-Boardprofil](https://docs.platformio.org/en/latest/boards/espressif32/esp32-c3-devkitm-1.html): CPU, Speicher und Arduino-Unterstützung.
 - [Adafruit NeoPixel 1.12.5 ESP32-Ausgabe](https://github.com/adafruit/Adafruit_NeoPixel/blob/1.12.5/esp.c): RMT-Implementierung.
+
+Über „Klaviertöne (Browser-Synthesizer)“ lässt sich ein lokaler, mehrstimmiger Web-Audio-Synthesizer für die virtuelle Tastatur einschalten. Der Schalter aktiviert Audio per Benutzeraktion, auch für Browser mit Autoplay-Sperre. Die Ausgabe erfolgt über Smartphone/Computer und benötigt weder Internet noch ESP32-Audiohardware. Der Klang verwendet Sinus-Obertöne und eine abklingende Hüllkurve, keine aufgenommenen Klaviersamples. Loslassen, Fokusverlust, Seitenwechsel und Abschalten beenden die Töne. Dies spielt die selbst gedrückten Tasten, keine automatische MIDI-Begleitung.
+
+### Optionale Notenvorschau (Firmware 1.3.0)
+
+Im Training „Noten anzeigen (mit Vorschau)“ einschalten. Die Ansicht zeigt den aktuellen und die nächsten fünf Einsätze im Violin- und Bassschlüssel; der aktuelle Einsatz ist blau hervorgehoben. Sie folgt dem Trainingsfortschritt, bleibt bei Pause stehen und funktioniert mit eingebauten Übungen und importierten MIDI-Abschnitten. Beide Schalter („Noten anzeigen“ und „Notennamen als Lernhilfe“) werden lokal im Browser gespeichert. Auf kleinen Bildschirmen lässt sich die Vorschau horizontal scrollen.
+
+Angezeigt werden Tonhöhen als Notenköpfe, Akkorde, Pausen und der Abstand zum nächsten Einsatz in Viertelschlägen. Vorzeichen gelten hier einzeln pro Ton; es wird keine Tonart vorausgesetzt. Die deutschen Lernnamen verwenden H (die MIDI-Tastatur verwendet dafür B). Sehr hohe/tiefe Töne werden mit Oktavierungshinweisen dargestellt. Die Ansicht rekonstruiert keine vollständige Partitur: Notenlängen, Stimmen, Taktart und Pedal fehlen im bisherigen Trainingsformat.
+
+Das Gerät sendet unter `training.upcoming` ein begrenztes Fenster von sechs Schritten (`index`, `ticks`, `notes`). Die Darstellung wird lokal mit SVG erzeugt und braucht keine zusätzlichen Bibliotheken, Schriftdateien oder Internetverbindung.
+
+Über die ☰-Schaltfläche links oben lässt sich die Navigation vollständig aus- und wieder einblenden. Ohne Seitenleiste nutzt der Inhalt die verfügbare Breite. Dies funktioniert auch für die mobile Navigationsleiste; die Einstellung bleibt lokal im Browser gespeichert.
+
+### IP-Konfiguration, Hostname und mDNS (Firmware 1.4.0)
+
+Unter WLAN-Einstellungen wird die aktuelle Router-Verbindung mit IPv4-Adresse, Subnetzmaske, Gateway, DNS-Servern, MAC-Adresse, Signalstärke und aktivem Hostnamen angezeigt. Die Adressvergabe erfolgt weiterhin automatisch per DHCP; es wird keine statische IP konfiguriert. Setup-AP-Adresse und Subnetz stehen getrennt darunter, damit Router- und Einrichtungsnetz nicht verwechselt werden. Offline werden keine alten Router-Adressen als aktuelle Werte angezeigt.
+
+Der Hostname lässt sich separat speichern, ohne die WLAN-Zugangsdaten neu einzugeben. Standard ist `midi-trainer`. Erlaubt sind 1–31 ASCII-Zeichen (a–z, 0–9, Bindestrich), kein Bindestrich am Anfang/Ende und keine Endung `.local`. Großbuchstaben werden kleingeschrieben. Die Grenze von 31 Zeichen entspricht dem Hostnamenpuffer im verwendeten Arduino-ESP32-Core 2.0.17. Der Name bleibt in NVS erhalten; Werksreset stellt den Standard wieder her. Speichern beendet das Training und startet den Trainer neu, damit der Hostname vor dem WLAN-Start gesetzt wird.
+
+Bei Verbindung zum Router startet der mDNS-Responder samt HTTP-Dienstankündigung. Dann ist der Trainer im selben lokalen Netzwerk beispielsweise unter `http://midi-trainer.local/` oder nach Umbenennung `http://piano.local/` erreichbar. Das setzt funktionierende Multicast-/mDNS-Unterstützung im Netzwerk und Client voraus; die IP-Adresse bleibt als Alternative sichtbar. Beim WLAN-Abbruch wird mDNS beendet, nach Wiederverbindung erneut gestartet. Im Setup-WLAN bleibt `http://192.168.4.1/` die Einstiegsadresse. Quellen: [Espressif Wi-Fi API](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/wifi.html), [Espressif mDNS-Dienst](https://docs.espressif.com/projects/esp-protocols/mdns/docs/latest/en/index.html); die Implementierung verwendet die lokal installierten 2.0.17-Schnittstellen.
+
+DDNS für eine öffentliche Internetadresse ist eine andere Funktion und derzeit nicht implementiert. Für den lokalen Zugriff per Gerätename ist mDNS vorgesehen.

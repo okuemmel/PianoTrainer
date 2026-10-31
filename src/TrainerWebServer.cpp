@@ -46,16 +46,26 @@ void TrainerWebServer::status() {
   d["board"] = BoardProfile::name;
   d["wifiState"] = wifi.state;
   d["connected"] = WiFi.status() == WL_CONNECTED;
-  d["ssid"] = config.ssid;
+  d["ssid"] = WiFi.status() == WL_CONNECTED ? WiFi.SSID() : config.ssid;
   d["ip"] = WiFi.localIP().toString();
   d["ap"] = wifi.ap;
   d["apIp"] = WiFi.softAPIP().toString();
+  d["subnet"] = WiFi.subnetMask().toString();
+  d["gateway"] = WiFi.gatewayIP().toString();
+  d["dns1"] = WiFi.dnsIP(0).toString();
+  d["dns2"] = WiFi.dnsIP(1).toString();
+  d["mac"] = WiFi.macAddress();
+  d["rssi"] = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
+  d["apMask"] = WiFi.softAPSubnetMask().toString();
+  d["apMac"] = WiFi.softAPmacAddress();
+  d["hostname"] = WiFi.getHostname();
+  d["mdns"] = wifi.mdnsActive && WiFi.status() == WL_CONNECTED;
   d["uptime"] = millis() / 1000;
   d["heap"] = ESP.getFreeHeap();
   d["flash"] = ESP.getFlashChipSize();
   d["mode"] = leds.mode;
   d["filesystem"] = fsReady;
-  d["firmware"] = "1.1.1";
+  d["firmware"] = "1.4.0";
   d["keys"] = config.led.keys;
   d["baseNote"] = config.led.baseNote;
   d["channel"] = config.led.channel;
@@ -260,6 +270,41 @@ void TrainerWebServer::begin(bool filesystemReady) {
       return;
     }
     server.send(202, "application/json", "{\"ok\":true}");
+  });
+  server.on("/api/network", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    StaticJsonDocument<256> d;
+    if (!body(d, 256)) return;
+    if (!d["hostname"].is<const char*>()) {
+      error(400, "Hostname fehlt.");
+      return;
+    }
+    const auto raw = d["hostname"].as<JsonString>();
+    if (raw.size() != strlen(raw.c_str())) {
+      error(400, "Ungültiger Hostname.");
+      return;
+    }
+    String name = d["hostname"].as<String>();
+    name.trim();
+    name.toLowerCase();
+    if (!validHostname(std::string_view(name.c_str(), name.length()))) {
+      error(400,
+            "Hostname: 1–31 Zeichen (a–z, 0–9, Bindestrich); Anfang und Ende ohne Bindestrich. "
+            "Ohne .local.");
+      return;
+    }
+    if (!config.saveHostname(name)) {
+      error(500, "Hostname konnte nicht gespeichert werden.");
+      return;
+    }
+    midi.release();
+    training.stop();
+    StaticJsonDocument<256> reply;
+    reply["ok"] = true;
+    reply["hostname"] = name;
+    reply["restart"] = true;
+    json(200, reply);
+    rebootAt = millis() + 1500;
   });
   server.on("/api/setup", HTTP_POST, [this] {
     if (!auth(true)) return;

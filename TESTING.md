@@ -8,8 +8,8 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 |---|---|
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
-| `pio test -e native` | 16 von 16 Tests bestanden |
-| `npm test` | 18 von 18 Browser-/MIDI-Tests bestanden |
+| `pio test -e native` | 17 von 17 Tests bestanden |
+| `npm test` | 29 von 29 Browser-/MIDI-Tests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -17,8 +17,8 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 
 Speicherbelegung laut finalem Linkergebnis:
 
-- Statischer RAM: **43.068 / 327.680 Bytes (13,1 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **864.396 / 1.572.864 Bytes (55,0 %)**.
+- Statischer RAM: **45.020 / 327.680 Bytes (13,7 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
+- Anwendung im Flash: **897.502 / 1.572.864 Bytes (57,1 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -100,6 +100,44 @@ Der Benutzer hat vor dieser Erweiterung bestätigt, dass der LED-Streifen nach K
 Die Browseranzeige berücksichtigt Startoffset, umgekehrte Reihenfolge und mehrere Noten pro LED in den LED-Beschreibungen. Es wird keine zweite Trainings-Farblogik im Browser unterhalten. MIDI-/Trainingsantworten aktualisieren die Vorschau unmittelbar; Statusabfragen gleichen weitere Änderungen ab. Sehr kurze Rhythmusimpulse können zwischen zwei Abfragen liegen.
 
 Bestanden: **16 native Tests und 18 Node-Tests** (12 DOM, 6 MIDI-Dateien), JavaScript-Syntax und Formatprüfung. Die drei zusätzlichen DOM-Tests prüfen konkrete RGB-Farben aus Antwort-Snapshots, Rückkehr auf Aus nach Note Off, die gemeinsame Anzeige beim Seitenwechsel, Offset/Umkehrung/Mehrfachzuordnung sowie 300 LEDs und fehlerhafte Snapshots. Der C3-Build ist erfolgreich. Firmware und LittleFS-Image wurden hochgeladen und per Flash-Hash verifiziert. Ein visueller Vergleich mit Safari und dem physischen Streifen steht noch aus.
+
+## Tastengeometrie, Browser-Audio und große MIDI-Dateien · Firmware 1.2.0
+
+Eine virtuelle LED pro Taste wird über derselben weißen/schwarzen Tastenmitte positioniert. Beide Reihen liegen in einem gemeinsamen horizontalen Scrollbereich. Die Anzeige löst weiterhin das tatsächliche physische Mapping einschließlich Offset, Umkehrung und gemeinsam genutzten LEDs auf. Nicht sichtbare/unzugeordnete Streifen-LEDs werden nicht als zusätzliche Tastenzellen ausgegeben.
+
+Optionaler lokaler Web-Audio-Synthesizer: Benutzeraktion aktiviert den AudioContext, die gespielten Tasten erzeugen Grundton und Obertöne mit Abklinghüllkurve. Note Off, Fokusverlust und Seitenwechsel lösen die Stimmen. Audio läuft im Browser, es werden weder Internet-Samples noch zusätzliche ESP32-Ressourcen benötigt. Es ist ein synthetischer Klang und keine automatische MIDI-Wiedergabe.
+
+Der Browserimport erlaubt 2 MiB / 250.000 Ereignisse / 64 Spuren. Ein gewählter Abschnitt von bis zu 128 Schritten bleibt innerhalb der unveränderten C3-Grenzen. Quantisierung auf 1/32-Noten, Aufteilung langer Pausen und optionaler Tastaturbereichsfilter werden angezeigt. Die angegebene Startposition zählt auch Pausenschritte; Abschnitte werden manuell gewählt und gestartet, nicht automatisch weitergestreamt.
+
+Die bereitgestellte Datei `Metallica_-_Master_Of_Puppets.mid` wurde lokal gelesen, nicht ins Repository übernommen: 108.555 Bytes, Format 1, 25 Spuren, 35.201 Ereignisse. Der alte Parser brach an der 20.000-Ereignisgrenze ab. Mit Bereich 48–96 und allen Kanälen außer 10: 1.816 Schritte in 15 Abschnitten; 8.475 Note-On-Ereignisse außerhalb der Tastatur ausgelassen. Alle 15 Abschnitte konnten geparst werden; Notenbereich, Akkordgröße, Dauergrenzen und JSON-Payload unter 12.288 Bytes wurden geprüft. Das Dateitempo 220 BPM wird für die Übung auf die bestehende Obergrenze 200 BPM gesetzt und in der Oberfläche ausgewiesen.
+
+Bestanden: 16 native Tests, 23 Node-Tests (15 DOM/Audio, 8 Parser), Format- und Syntaxprüfung, C3-Firmwarebuild. Neue Prüfungen decken weiße/schwarze Tastenpositionen und gemeinsamen Scrollcontainer, 440-Hz-Grundton samt Freigabe anhand eines AudioContext-Testdoubles, Abschnittsübertragung, lange Dateien, Rasterung und Pausen ab. Diese Prüfungen bestätigen keine tatsächliche hörbare Audioausgabe oder Safari-Darstellung. Firmware 1.2.0 und das neue LittleFS-Image wurden anschließend erfolgreich über USB auf den C3 übertragen; beide Images wurden per Flash-Hash verifiziert. Ein kompletter Safari-/Trainingsdurchlauf auf dem Gerät bleibt manuell zu prüfen.
+
+## Optionale Notenvorschau · Firmware 1.3.0
+
+Eine lokal erzeugte SVG-Ansicht stellt den aktuellen und die nächsten fünf Einsätze im Violin- und Bassschlüssel dar. Ein separater Schalter blendet Notennamen ein/aus. Beide Einstellungen werden browserlokal gespeichert. Die Ansicht zeigt Notenköpfe, Hilfslinien, einzelne Kreuzvorzeichen, Akkorde, Pausen, Oktavierungshinweise und Einsatzabstände. Sie ist eine Tonhöhen-Vorschau, keine Rekonstruktion einer vollständigen Partitur mit Stimmen, Taktart und originalen Notenlängen.
+
+`TrainingController::status()` liefert ein begrenztes `upcoming`-Fenster direkt aus der laufenden Gerätesequenz, auch für eingebaute Übungen. Pause behält die Vorschau, freie Wiedergabe und Abschluss liefern keine folgenden Schritte. Der Client verwendet keine zweite Übungsfolge und zeichnet bei unveränderter Vorschau nicht neu.
+
+Bestanden: 16 native Tests und 26 Node-Tests (18 DOM/Audio/Notation, 8 Parser), C3-Firmwarebuild, Format-/Syntaxprüfung. Drei zusätzliche DOM-Tests prüfen die optionalen Ansichten, zehn Notenlinien, konkrete Tonhöhenpositionen (E4, C4, G2, H3), Akkorde, Vorzeichen, Pausen, Notennamen, sechs Schritte Vorschau, Fortschritt/Pause/Stop/Abschluss und Oktavierung für MIDI 0/127. Die Tests sind keine visuelle Safari-Prüfung. Firmware: 43.068 Bytes statischer RAM, 864.702 Bytes Flash. Firmware 1.3.0 und die neue LittleFS-Weboberfläche wurden auf den angeschlossenen C3 übertragen und beide Flash-Hashes erfolgreich verifiziert. Die sichtbare Darstellung auf Safari und das Spielen mit dieser Vorschau sind noch manuell zu prüfen.
+
+## Ausblendbare Navigation
+
+Die ☰-Schaltfläche im Kopfbereich blendet die Navigation vollständig aus und wieder ein. Die verbleibende Hauptspalte nutzt dann die verfügbare Breite; auch die mobile Navigationsleiste kann ausgeblendet werden. Der Zustand wird browserlokal gespeichert. `hidden`, `aria-expanded`, Beschriftung und Fokus werden gemeinsam aktualisiert.
+
+Geprüft: 16 native und 26 Node-Tests, Format-/Syntaxprüfung, C3-Build, LittleFS-Build. Zusätzlich wurde das Umschalten, Wiederherstellen des gespeicherten Zustands, ARIA und Fokus mit einem einmaligen jsdom-Durchlauf geprüft. Das neue LittleFS-Image wurde über USB hochgeladen und per Flash-Hash verifiziert. Die responsive Darstellung in Safari wurde hier nicht visuell geprüft.
+
+## Netzwerkdiagnose, Hostname und mDNS · Firmware 1.4.0
+
+Die WLAN-Seite zeigt Router- und Setup-IP-Konfiguration getrennt. Routerdaten umfassen die tatsächliche IPv4-Adresse, Subnetzmaske, Gateway, DNS-Server, MAC, Signalstärke, aktiven Hostnamen und mDNS-Status. Offline werden keine alten Routeradressen als aktuell angezeigt. Die Adressvergabe bleibt DHCP.
+
+Der neue geschützte POST-Endpunkt `/api/network` validiert/normalisiert den Hostnamen, speichert ausschließlich diesen NVS-Wert und startet danach neu. WLAN-Zugangsdaten bleiben unabhängig davon erhalten. Hostnamen sind auf 31 Zeichen begrenzt, weil der lokale Arduino-ESP32-Core 2.0.17 einen 32-Byte-Cache verwendet. NUL, Leerzeichen, Punkte, nicht-ASCII-Zeichen und ungültige Bindestrichpositionen werden verworfen. Nach dem Boot wird der Hostname vor dem WLAN-Start gesetzt. Bei Routerverbindung startet ESPmDNS mit HTTP-Dienst; Fehler werden mit mindestens zehn Sekunden Abstand erneut versucht. Verbindungsabbruch beendet mDNS, Wiederverbindung startet es neu.
+
+Bestanden: 17 native Tests, 29 Node-Tests (21 DOM/Audio/Notation, 8 Parser), Format-/Syntaxprüfung und C3-Firmwarebuild. Neue Hostnamenprüfungen decken gültige Namen, Grenzen 31/32, Sonderzeichen und eingebettete NUL ab. Neue DOM-Prüfungen decken IP-/DNS-/mDNS-Anzeige, Normalisierung/Übertragung des Hostnamens ohne WLAN-Zugangsdaten, Neustarthinweise, Erhalt ungespeicherter Eingaben und getrennte Offline-/AP-Daten ab. Ein anfangs paralleler PlatformIO-Lauf erzeugte Meldungen beim Löschen veralteter Build-Artefakte; anschließend wurde der aktuelle Firmwarestand sequenziell erfolgreich gebaut.
+
+Firmware 1.4.0 und das neue LittleFS-Image wurden erfolgreich auf den C3 übertragen und per Flash-Hash verifiziert. Anschließend antwortete `/api/status` sowohl über `http://192.168.100.127/` als auch über `http://midi-trainer.local/`: Firmware 1.4.0, Routerverbindung aktiv, Hostname `midi-trainer`, mDNS aktiv, Setup-AP aus. Damit ist die tatsächliche Namensauflösung vom verwendeten Mac im aktuellen Netzwerk bestätigt. Ein benutzerseitiger Namenswechsel samt NVS-Erhalt und das Verhalten nach WLAN-Ausfall sind noch separat am Gerät zu prüfen.
+
+Die Nextcloud-Planung wurde präzisiert: festes MIDI-Verzeichnis in den Einstellungen, enthaltene MIDI-Dateien automatisch in der Auswahlliste. Die Nextcloud- und MIDIsss-Anbindungen sind weiterhin nicht implementiert.
 
 ## Noch am echten Gerät prüfen
 

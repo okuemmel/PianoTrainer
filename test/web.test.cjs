@@ -64,6 +64,17 @@ async function setup() {
         wifiState: "Verbunden",
         ssid: "Test",
         ip: "192.168.1.9",
+        subnet: "255.255.255.0",
+        gateway: "192.168.1.1",
+        dns1: "192.168.1.1",
+        dns2: "0.0.0.0",
+        mac: "02:00:00:00:00:01",
+        rssi: -51,
+        hostname: "midi-trainer",
+        mdns: true,
+        apIp: "192.168.4.1",
+        apMask: "255.255.255.0",
+        apMac: "02:00:00:00:00:02",
         ap: false,
         keys: 49,
         baseNote: 48,
@@ -104,6 +115,8 @@ async function setup() {
         data = { ok: true, training, leds };
       } else data = config;
     }
+    if (url === "/api/network")
+      data = { ok: true, hostname: body.hostname, restart: true };
     if (url === "/api/wifi/scan")
       data = {
         scanning: false,
@@ -114,7 +127,10 @@ async function setup() {
     return { ok: true, status: 200, json: async () => data };
   };
   dom.window.eval(fs.readFileSync("data/midi-file.js", "utf8"));
-  dom.window.eval(script);
+  dom.window.eval(
+    script +
+      "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus;",
+  );
   await tick();
   await tick();
   return {
@@ -122,6 +138,10 @@ async function setup() {
     w: dom.window,
     d: dom.window.document,
     calls,
+    deliverTraining: (next) => {
+      training = { ...training, ...next };
+      dom.window.receiveTrainingSnapshot(training);
+    },
     setLeds: (next) => {
       leds = next;
     },
@@ -265,7 +285,7 @@ test("training starts, moves the shared keyboard and supports pause/resume/free 
   s.w.dispatchEvent(new s.w.HashChangeEvent("hashchange"));
   await tick();
   assert.equal(
-    s.d.querySelector("#keyboard").parentElement.id,
+    s.d.querySelector("#keyboard").closest("#ledPreview").parentElement.id,
     "trainingKeyboardMount",
   );
   const form = s.d.querySelector("#trainingForm");
@@ -321,7 +341,7 @@ test("leaving training pauses a running lesson", async (t) => {
 test("LED simulation renders the device frame and updates immediately after note on/off", async (t) => {
   const s = await setup();
   t.after(() => s.w.close());
-  assert.equal(s.d.querySelectorAll(".led-cell").length, 60);
+  assert.equal(s.d.querySelectorAll(".led-cell").length, 49);
   assert.equal(s.d.querySelectorAll(".led-cell.lit").length, 0);
   const pixels = Array(60).fill("000000");
   pixels[12] = "000925";
@@ -361,10 +381,13 @@ test("LED labels respect first offset, reversal and shared-note mapping", async 
   await tick();
   const label = s.d.querySelector('[data-led="43"]').title;
   assert.ok(label.includes("C4 (60)"));
-  assert.ok(label.includes("C♯4 (61)"));
   assert.ok(
-    s.d.querySelector('[data-led="0"]').title.includes("keine MIDI-Zuordnung"),
+    s.d
+      .querySelector('.led-cell[data-note-value="61"]')
+      .title.includes("C♯4 (61)"),
   );
+  assert.equal(s.d.querySelectorAll('[data-led="43"]').length, 2);
+  assert.equal(s.d.querySelector('[data-led="0"]'), null);
 });
 test("LED preview supports 300 pixels and recovers from a malformed frame", async (t) => {
   const s = await setup();
@@ -379,9 +402,9 @@ test("LED preview supports 300 pixels and recovers from a malformed frame", asyn
   s.d.querySelector("#freePlay").click();
   await tick();
   await tick();
-  assert.equal(s.d.querySelectorAll(".led-cell").length, 300);
-  assert.equal(s.d.querySelectorAll(".led-cell.lit").length, 1);
-  assert.equal(s.d.querySelector('[data-led="299"]').dataset.color, "#00ff00");
+  assert.equal(s.d.querySelectorAll(".led-cell").length, 49);
+  assert.equal(s.d.querySelectorAll(".led-cell.lit").length, 0);
+  assert.equal(s.d.querySelector('[data-led="299"]'), null);
   s.setLeds({ ...valid, frame: "broken" });
   s.d.querySelector("#freePlay").click();
   await tick();
@@ -397,4 +420,317 @@ test("LED preview supports 300 pixels and recovers from a malformed frame", asyn
   assert.ok(
     s.d.querySelector("#ledPreviewInfo").textContent.includes("300 LEDs"),
   );
+});
+
+test("one LED is centered above every white and black key in the shared scroller", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const keys = [...s.d.querySelectorAll(".key")],
+    cells = [...s.d.querySelectorAll(".led-cell")];
+  assert.equal(keys.length, cells.length);
+  keys.forEach((key, i) => {
+    assert.equal(key.dataset.noteValue, cells[i].dataset.noteValue);
+    const keyCenter =
+      parseFloat(key.style.left) + (key.classList.contains("black") ? 12 : 20);
+    assert.equal(parseFloat(cells[i].style.left), keyCenter);
+    assert.equal(
+      key.closest(".piano-scroll"),
+      cells[i].closest(".piano-scroll"),
+    );
+  });
+  assert.equal(cells[0].style.left, "20px");
+  assert.equal(cells[1].style.left, "40px");
+  assert.equal(cells[2].style.left, "60px");
+});
+test("optional browser audio uses the correct pitch and releases on key-up and blur", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const oscillators = [],
+    gains = [];
+  s.w.AudioContext = class {
+    state = "suspended";
+    currentTime = 10;
+    destination = {};
+    resume() {
+      this.state = "running";
+      return Promise.resolve();
+    }
+    createGain() {
+      const node = {
+        gain: {
+          value: 0,
+          setValueAtTime() {},
+          exponentialRampToValueAtTime() {},
+          cancelScheduledValues() {},
+          setTargetAtTime() {
+            node.released = true;
+          },
+        },
+        connect() {},
+        disconnect() {},
+      };
+      gains.push(node);
+      return node;
+    }
+    createOscillator() {
+      const node = {
+        frequency: {},
+        stops: [],
+        connect() {},
+        disconnect() {},
+        start() {},
+        stop(time) {
+          this.stops.push(time);
+        },
+        addEventListener() {},
+      };
+      oscillators.push(node);
+      return node;
+    }
+  };
+  const key = s.d.querySelector('.key[data-note-value="69"]');
+  pointer(s.w, key, "pointerdown", 1);
+  pointer(s.w, key, "pointerup", 1);
+  assert.equal(oscillators.length, 0);
+  s.d.querySelector("#soundEnabled").click();
+  await tick();
+  pointer(s.w, key, "pointerdown", 2);
+  assert.equal(oscillators.length, 3);
+  assert.equal(oscillators[0].frequency.value, 440);
+  pointer(s.w, key, "pointerup", 2);
+  assert.equal(oscillators[0].stops.at(-1), 10.15);
+  pointer(s.w, key, "pointerdown", 3);
+  s.w.dispatchEvent(new s.w.Event("blur"));
+  assert.equal(oscillators[3].stops.at(-1), 10.15);
+  assert.ok(gains.some((g) => g.released));
+  await tick();
+  await tick();
+});
+test("MIDI import transfers only the selected section with visible totals", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  let options;
+  s.w.MidiFile.parse = (buffer, opts) => {
+    options = opts;
+    return {
+      steps: [{ notes: [60], ticks: 480 }],
+      startStep: 128,
+      totalSteps: 2000,
+      bpm: 100,
+      channels: [2],
+      quantized: true,
+      droppedNotes: 7,
+    };
+  };
+  Object.defineProperty(s.d.querySelector("#midiFile"), "files", {
+    value: [
+      {
+        size: 108555,
+        name: "example.mid",
+        arrayBuffer: async () => new ArrayBuffer(0),
+      },
+    ],
+  });
+  s.d.querySelector("#importStart").value = "129";
+  s.d.querySelector("#importMidi").click();
+  await tick();
+  await tick();
+  assert.equal(options.startStep, 128);
+  assert.equal(options.minNote, 48);
+  assert.equal(options.maxNote, 96);
+  assert.match(
+    s.d.querySelector("#importResult").textContent,
+    /129–129 von 2000/,
+  );
+  s.d
+    .querySelector("#trainingForm")
+    .dispatchEvent(
+      new s.w.Event("submit", { cancelable: true, bubbles: true }),
+    );
+  await tick();
+  await tick();
+  const sent = s.calls.find(
+    (c) => c.url === "/api/training" && c.body?.command === "start",
+  );
+  assert.deepEqual(sent.body.steps, [{ notes: [60], ticks: 480 }]);
+});
+
+test("optional score shows current and upcoming pitches on both staves with independent name labels", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const upcoming = [
+    { index: 0, notes: [60, 64, 67], ticks: 480 },
+    { index: 1, notes: [43, 59, 61], ticks: 240 },
+    { index: 2, notes: [], ticks: 960 },
+  ];
+  s.deliverTraining({
+    state: "playing",
+    mode: "song",
+    total: 3,
+    index: 0,
+    upcoming,
+  });
+  assert.equal(s.d.querySelector("#scorePanel").hidden, true);
+  s.d.querySelector("#showScore").click();
+  assert.equal(s.d.querySelector("#scorePanel").hidden, false);
+  assert.equal(s.d.querySelectorAll(".score-step").length, 3);
+  assert.equal(s.d.querySelectorAll(".staff-line").length, 10);
+  assert.equal(
+    s.d.querySelector('.score-note[data-note="64"]').getAttribute("cy"),
+    "110",
+  );
+  assert.equal(
+    s.d.querySelector('.score-note[data-note="60"]').getAttribute("cy"),
+    "120",
+  );
+  assert.equal(
+    s.d.querySelector('.score-note[data-note="43"]').getAttribute("cy"),
+    "230",
+  );
+  assert.equal(
+    s.d.querySelector('.score-note[data-note="59"]').getAttribute("cy"),
+    "185",
+  );
+  assert.equal(s.d.querySelectorAll(".score-sharp").length, 1);
+  assert.match(s.d.querySelector('[data-step="1"]').textContent, /H3/);
+  assert.equal(s.d.querySelector(".score-rest").textContent, "Pause");
+  assert.equal(s.d.querySelector(".score-step.current").dataset.step, "0");
+  assert.match(
+    s.d.querySelector("#scoreSummary").textContent,
+    /Einsatz 1 von 3: C4 \+ E4 \+ G4/,
+  );
+  s.d.querySelector("#scoreLabels").click();
+  assert.equal(s.d.querySelectorAll(".score-note-name").length, 0);
+  assert.doesNotMatch(s.d.querySelector("#scoreSummary").textContent, /C4/);
+  assert.ok(s.d.querySelectorAll(".score-note").length > 0);
+  assert.equal(s.w.localStorage.getItem("showScore"), "true");
+  s.d.querySelector("#showScore").click();
+  assert.equal(s.d.querySelector("#scorePanel").hidden, true);
+});
+test("score advances with device state, keeps paused notes and clears after stop or completion", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.d.querySelector("#showScore").click();
+  const upcoming = Array.from({ length: 7 }, (_, i) => ({
+    index: i,
+    notes: [60 + i],
+    ticks: 480,
+  }));
+  s.deliverTraining({
+    state: "countin",
+    mode: "song",
+    total: 7,
+    index: 0,
+    upcoming,
+  });
+  assert.equal(s.d.querySelectorAll(".score-step").length, 6);
+  s.deliverTraining({
+    state: "playing",
+    index: 1,
+    upcoming: upcoming.slice(1),
+  });
+  assert.equal(s.d.querySelector(".score-step.current").dataset.step, "1");
+  assert.equal(s.d.querySelector('.score-note[data-note="60"]'), null);
+  s.deliverTraining({ state: "paused" });
+  assert.equal(s.d.querySelector(".score-step.current").dataset.step, "1");
+  assert.match(s.d.querySelector("#scoreSummary").textContent, /pausiert/);
+  s.deliverTraining({ state: "completed", index: 7, upcoming: [] });
+  assert.equal(s.d.querySelector("#scoreViewport svg"), null);
+  assert.match(s.d.querySelector("#scoreSummary").textContent, /abgeschlossen/);
+  s.deliverTraining({ state: "idle", mode: "free", upcoming });
+  assert.equal(s.d.querySelector("#scoreViewport svg"), null);
+  assert.match(
+    s.d.querySelector("#scoreSummary").textContent,
+    /Starte eine Übung/,
+  );
+});
+test("extreme MIDI notes use octave marks while keeping true note names and bounded geometry", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.d.querySelector("#showScore").click();
+  s.deliverTraining({
+    state: "playing",
+    total: 1,
+    index: 0,
+    upcoming: [{ index: 0, notes: [0, 127], ticks: 60 }],
+  });
+  const heads = [...s.d.querySelectorAll(".score-note")];
+  assert.equal(heads.length, 2);
+  assert.ok(
+    heads.every(
+      (n) =>
+        Number(n.getAttribute("cy")) >= 40 &&
+        Number(n.getAttribute("cy")) <= 250,
+    ),
+  );
+  assert.equal(s.d.querySelectorAll(".score-octave").length, 2);
+  assert.match(s.d.querySelector("#scoreSummary").textContent, /C-1 \+ G9/);
+});
+
+test("Wi-Fi settings show live IP configuration and a local hostname link", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const panel = s.d.querySelector("#wifiStationInfo");
+  assert.match(panel.textContent, /192.168.1.9/);
+  assert.match(panel.textContent, /255.255.255.0/);
+  assert.match(panel.textContent, /Gateway \/ Router192.168.1.1/);
+  assert.match(panel.textContent, /DNS-Server 1192.168.1.1/);
+  assert.match(panel.textContent, /DNS-Server 2—/);
+  assert.match(panel.textContent, /-51 dBm/);
+  assert.match(panel.textContent, /DHCP/);
+  assert.equal(s.d.querySelector("#hostname").value, "midi-trainer");
+  assert.equal(s.d.querySelector("#mdnsAddress").hidden, false);
+  assert.equal(
+    s.d.querySelector("#mdnsAddressLink").href,
+    "http://midi-trainer.local/",
+  );
+  assert.match(s.d.querySelector("#wifiApInfo").textContent, /Ausgeschaltet/);
+});
+test("hostname changes send only the normalized name and show restart instructions", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const input = s.d.querySelector("#hostname");
+  input.value = "Piano-2";
+  input.dispatchEvent(new s.w.Event("input"));
+  assert.equal(
+    s.d.querySelector("#hostnamePreview").textContent,
+    "http://piano-2.local/",
+  );
+  const live = await (await s.w.fetch("/api/status", {})).json();
+  s.w.receiveNetworkSnapshot(live);
+  assert.equal(input.value, "Piano-2");
+  s.d
+    .querySelector("#hostnameForm")
+    .dispatchEvent(
+      new s.w.Event("submit", { bubbles: true, cancelable: true }),
+    );
+  await tick();
+  await tick();
+  const sent = s.calls.find((c) => c.url === "/api/network");
+  assert.deepEqual(sent.body, { hostname: "piano-2" });
+  assert.equal(sent.options.headers["X-Trainer"], "1");
+  assert.match(s.d.querySelector("#hostnameResult").textContent, /startet neu/);
+  assert.match(
+    s.d.querySelector("#hostnameResult").textContent,
+    /piano-2.local/,
+  );
+});
+test("offline Wi-Fi hides stale router addresses while showing the setup IP", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const live = await (await s.w.fetch("/api/status", {})).json();
+  s.w.receiveNetworkSnapshot({
+    ...live,
+    connected: false,
+    ap: true,
+    mdns: false,
+    wifiState: "Einrichtung verfügbar",
+  });
+  assert.doesNotMatch(
+    s.d.querySelector("#wifiStationInfo").textContent,
+    /192.168.1.9|192.168.1.1|255.255.255.0/,
+  );
+  assert.match(s.d.querySelector("#wifiApInfo").textContent, /192.168.4.1/);
+  assert.equal(s.d.querySelector("#mdnsAddress").hidden, true);
+  assert.equal(s.d.querySelector("#wifiAddress").hidden, true);
 });

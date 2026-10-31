@@ -4,8 +4,7 @@
   function parse(buffer, options = {}) {
     const bytes =
       buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    if (bytes.length > 262144)
-      throw Error("MIDI-Datei ist größer als 256 KiB.");
+    if (bytes.length > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let p = 0,
       events = 0;
@@ -65,7 +64,23 @@
       Math.abs(transpose) > 48
     )
       throw Error("Ungültiger Importkanal oder Transposition.");
-    const attacks = new Map();
+    const startStep = options.startStep ?? 0,
+      minNote = options.minNote ?? 0,
+      maxNote = options.maxNote ?? 127;
+    if (
+      !Number.isInteger(startStep) ||
+      startStep < 0 ||
+      !Number.isInteger(minNote) ||
+      !Number.isInteger(maxNote) ||
+      minNote < 0 ||
+      maxNote > 127 ||
+      minNote > maxNote
+    )
+      throw Error("Ungültiger Abschnitt oder Tastaturbereich.");
+    const attacks = new Map(),
+      channels = new Set();
+    let droppedNotes = 0,
+      quantized = false;
     let lastNoteOff = 0,
       firstTempo = 500000,
       tempoEvents = 0;
@@ -77,7 +92,7 @@
       let tick = 0,
         running = 0;
       while (p < end) {
-        if (++events > 20000)
+        if (++events > 250000)
           throw Error("MIDI-Datei enthält zu viele Ereignisse.");
         tick += variable(end);
         need(1, end);
@@ -125,6 +140,7 @@
         const a = bytes[p++],
           b = size === 2 ? bytes[p++] : 0;
         if (a > 127 || b > 127) throw Error("Ungültige MIDI-Datenbytes.");
+        if (kind === 9 && b > 0) channels.add(channel);
         if (
           (selectedChannel && channel !== selectedChannel) ||
           (!selectedChannel && channel === 10)
@@ -134,35 +150,67 @@
           const note = a + transpose;
           if (note < 0 || note > 127)
             throw Error("Transponierte Note außerhalb von MIDI 0–127.");
-          if (!attacks.has(tick)) attacks.set(tick, new Set());
-          attacks.get(tick).add(note);
+          if (note < minNote || note > maxNote) {
+            droppedNotes++;
+            continue;
+          }
+          const normalized = (tick * 480) / division;
+          const gridTick = Math.round(normalized / 60) * 60;
+          if (Math.abs(gridTick - normalized) > 0.01) quantized = true;
+          if (!attacks.has(gridTick)) attacks.set(gridTick, new Set());
+          attacks.get(gridTick).add(note);
         } else if (kind === 8 || (kind === 9 && b === 0))
-          lastNoteOff = Math.max(lastNoteOff, tick);
+          lastNoteOff = Math.max(
+            lastNoteOff,
+            Math.round((tick * 480) / division / 60) * 60,
+          );
       }
     }
     const groups = [...attacks.entries()].sort((a, b) => a[0] - b[0]);
     if (!groups.length)
       throw Error("Keine spielbaren Noten im gewählten Kanal gefunden.");
-    if (groups.length > 128)
-      throw Error(
-        "Mehr als 128 Noteneinsätze. Bitte einen kürzeren MIDI-Ausschnitt wählen.",
-      );
-    const steps = groups.map(([tick, notes], i) => {
-      if (notes.size > 8)
-        throw Error(
-          "Mehr als 8 gleichzeitige Noten. Bitte einen einzelnen MIDI-Kanal wählen.",
-        );
+    const allSteps = [];
+    for (let i = 0; i < groups.length; i++) {
+      const [tick, notes] = groups[i];
       const next =
         i + 1 < groups.length
           ? groups[i + 1][0]
-          : Math.max(lastNoteOff, tick + division);
-      const ticks = Math.round(((next - tick) * 480) / division);
-      if (ticks < 60 || ticks > 7680)
-        throw Error("Notenabstand außerhalb von 1/8 bis 16 Viertelschlägen.");
-      return { notes: [...notes].sort((a, b) => a - b), ticks };
-    });
+          : Math.max(lastNoteOff, tick + 480);
+      let remaining = Math.max(60, next - tick);
+      const ticks = Math.min(7680, remaining);
+      allSteps.push({ notes: [...notes].sort((a, b) => a - b), ticks });
+      remaining -= ticks;
+      while (remaining > 0) {
+        const rest = Math.min(7680, remaining);
+        allSteps.push({ notes: [], ticks: rest });
+        remaining -= rest;
+        if (allSteps.length > 100000)
+          throw Error("MIDI-Zeitachse ist zu lang.");
+      }
+    }
+    if (startStep >= allSteps.length)
+      throw Error(
+        "Abschnitt beginnt hinter dem letzten Einsatz (" +
+          allSteps.length +
+          ").",
+      );
+    const steps = allSteps.slice(startStep, startStep + 128);
+    if (steps.some((step) => step.notes.length > 8))
+      throw Error(
+        "Mehr als 8 gleichzeitige Noten. Bitte einen einzelnen MIDI-Kanal wählen.",
+      );
+    if (!steps.some((step) => step.notes.length))
+      throw Error(
+        "Dieser Abschnitt enthält nur Pausen. Anderen Start-Einsatz wählen.",
+      );
     return {
       steps,
+      totalSteps: allSteps.length,
+      startStep,
+      quantized,
+      droppedNotes,
+      channels: [...channels].sort((a, b) => a - b),
+      events,
       bpm: Math.round(60000000 / firstTempo),
       tempoChanges: tempoEvents > 1,
       format,

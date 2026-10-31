@@ -60,6 +60,9 @@ bool ConfigManager::begin() {
     if (!prefs.putString("access", "admin")) return false;
     if (!prefs.putBool("auth-v1", true)) return false;
   }
+  const auto storedHostname = prefs.getString("hostname", "midi-trainer");
+  if (validHostname(std::string_view(storedHostname.c_str(), storedHostname.length())))
+    hostname = storedHostname;
   accessPassword = prefs.getString("access", "admin");
   DynamicJsonDocument network(512);
   if (!deserializeJson(network, prefs.getString("network", "{}"))) {
@@ -96,6 +99,13 @@ bool ConfigManager::saveWifi(const String& name, const String& password) {
   if (!prefs.putString("network", blob)) return false;
   ssid = name;
   wifiPassword = password;
+  return true;
+}
+bool ConfigManager::saveHostname(const String& name) {
+  if (!validHostname(std::string_view(name.c_str(), name.length())) ||
+      !prefs.putString("hostname", name))
+    return false;
+  hostname = name;
   return true;
 }
 bool ConfigManager::saveAccessPassword(const String& password) {

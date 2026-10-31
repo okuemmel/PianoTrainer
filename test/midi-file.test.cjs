@@ -105,7 +105,7 @@ test("truncated chunks, illegal running status, SMPTE and invalid formats are re
   assert.throws(() => parse(file([[...end]], 480, 2)), /Format/);
   assert.throws(() => parse(file([[0, 144, 60]])), /abgeschnitten/);
 });
-test("bounded import rejects oversized chords and long lessons", () => {
+test("bounded import rejects oversized chords and splits long lessons into selected sections", () => {
   const chord = [];
   for (let n = 60; n < 69; n++) chord.push(0, 144, n, 100);
   chord.push(...vlq(480), 128, 60, 0, ...end);
@@ -113,8 +113,15 @@ test("bounded import rejects oversized chords and long lessons", () => {
   const long = [];
   for (let n = 0; n < 129; n++) long.push(...vlq(n ? 480 : 0), 144, 60, 100);
   long.push(...end);
-  assert.throws(() => parse(file([long])), /128 Noteneinsätze/);
-  assert.throws(() => parse(new Uint8Array(262145)), /256 KiB/);
+  const first = parse(file([long]));
+  assert.equal(first.steps.length, 128);
+  assert.equal(first.totalSteps, 129);
+  assert.equal(parse(file([long]), { startStep: 128 }).steps.length, 1);
+  assert.throws(
+    () => parse(file([long]), { startStep: 129 }),
+    /hinter dem letzten/,
+  );
+  assert.throws(() => parse(new Uint8Array(2097153)), /2 MiB/);
 });
 test("invalid data bytes and transposition beyond MIDI range fail cleanly", () => {
   assert.throws(() => parse(file([[0, 144, 60, 200, ...end]])), /Datenbytes/);
@@ -125,4 +132,47 @@ test("invalid data bytes and transposition beyond MIDI range fail cleanly", () =
       }),
     /außerhalb/,
   );
+});
+
+test("dense attacks are quantized, keyboard filtering is explicit and long pauses are retained", () => {
+  const data = file([
+    [
+      0,
+      144,
+      36,
+      100,
+      0,
+      144,
+      60,
+      100,
+      ...vlq(4),
+      144,
+      64,
+      100,
+      ...vlq(16000),
+      144,
+      67,
+      100,
+      ...end,
+    ],
+  ]);
+  const result = parse(data, { minNote: 48, maxNote: 96 });
+  assert.deepEqual(result.steps[0], { notes: [60, 64], ticks: 7680 });
+  assert.equal(result.quantized, true);
+  assert.equal(result.droppedNotes, 1);
+  assert.ok(result.steps.some((s) => s.notes.length === 0));
+  assert.ok(result.steps.every((s) => s.ticks >= 60 && s.ticks <= 7680));
+  assert.equal(
+    result.steps.reduce((sum, s) => sum + s.ticks, 0),
+    16500,
+  );
+});
+test("browser parser handles more than 20000 events without sending the whole song", () => {
+  const track = [];
+  for (let i = 0; i < 21000; i++) track.push(...vlq(i ? 120 : 0), 144, 60, 100);
+  track.push(...end);
+  const result = parse(file([track]), { startStep: 20000 });
+  assert.equal(result.totalSteps, 21000);
+  assert.equal(result.steps.length, 128);
+  assert.equal(result.startStep, 20000);
 });

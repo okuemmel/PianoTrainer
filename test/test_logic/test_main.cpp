@@ -1,5 +1,8 @@
 #include <unity.h>
 
+#include <string>
+
+#include "NetworkSettings.h"
 #include "TrainerLogic.h"
 void setUp() {}
 void tearDown() {}
@@ -105,8 +108,19 @@ void channels() {
   for (int channel = 1; channel <= 16; ++channel)
     TEST_ASSERT_EQUAL(channel == 5, acceptsChannel(c, channel));
 }
+void hostname_boundaries() {
+  for (const auto* name : {"piano", "midi-trainer", "piano-2", "a", "123"})
+    TEST_ASSERT_TRUE(validHostname(name));
+  TEST_ASSERT_TRUE(validHostname(std::string(31, 'a')));
+  TEST_ASSERT_FALSE(validHostname(std::string(32, 'a')));
+  for (const auto* name : {"", "-piano", "piano-", "piano.local", "piano trainer", "piano_2",
+                           "PIANO", "pianö", "http://piano"})
+    TEST_ASSERT_FALSE(validHostname(name));
+  TEST_ASSERT_FALSE(validHostname(std::string_view("piano\0suffix", 12)));
+}
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(hostname_boundaries);
   RUN_TEST(defaults_valid);
   RUN_TEST(gpio_allowlist);
   RUN_TEST(boundaries);

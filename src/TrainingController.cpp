@@ -139,6 +139,18 @@ void TrainingController::status(JsonObject o) const {
   o["elapsedMs"] = engine.elapsed(now);
   o["countInMs"] = engine.countInMs();
   o["lastErrorNote"] = engine.lastErrorNote;
+  // Small rolling window: keep the complete lesson on the device.
+  auto upcoming = o.createNestedArray("upcoming");
+  if (engine.state != TrainingState::Idle) {
+    for (int i = engine.index; i < engine.sequence.count && i < engine.index + 6; ++i) {
+      const auto& step = engine.sequence.steps[i];
+      auto item = upcoming.createNestedObject();
+      item["index"] = i;
+      item["ticks"] = step.ticks;
+      auto notes = item.createNestedArray("notes");
+      for (int j = 0; j < step.count; ++j) notes.add(step.notes[j]);
+    }
+  }
   auto expected = o.createNestedArray("expected");
   auto held = o.createNestedArray("held");
   auto targets = engine.targets();

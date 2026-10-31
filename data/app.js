@@ -6,12 +6,38 @@ let config = null,
   scanTimer;
 let commandQueue = Promise.resolve();
 const held = new Map();
+let lastScoreKey = "";
+let audioContext = null;
+const voices = new Map();
 let lastLedSnapshot = null,
   lastLedKey = "";
 let trainingView = null,
   trainingReceivedAt = 0,
   pausePending = false,
   importedSteps = null;
+function setNavigationCollapsed(collapsed) {
+  const nav = $("#mainNavigation"),
+    toggle = $("#toggleNavigation");
+  if (collapsed && nav.contains(document.activeElement)) toggle.focus();
+  nav.hidden = collapsed;
+  $(".layout").classList.toggle("navigation-collapsed", collapsed);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  const label = collapsed ? "Menü einblenden" : "Menü ausblenden";
+  toggle.setAttribute("aria-label", label);
+  toggle.title = label;
+}
+let navigationCollapsed = false;
+try {
+  navigationCollapsed = localStorage.getItem("navigationCollapsed") === "true";
+} catch {}
+setNavigationCollapsed(navigationCollapsed);
+$("#toggleNavigation").onclick = () => {
+  const collapsed = !$("#mainNavigation").hidden;
+  setNavigationCollapsed(collapsed);
+  try {
+    localStorage.setItem("navigationCollapsed", String(collapsed));
+  } catch {}
+};
 async function api(path, body) {
   const response = await fetch("/api/" + path, {
     method: body === undefined ? "GET" : "POST",
@@ -63,6 +89,7 @@ function noteCommand(body) {
     })
     .catch((e) => {
       toast(e.message, true);
+      silence();
       held.clear();
       document
         .querySelectorAll(".pressed")
@@ -82,7 +109,7 @@ function route() {
   const mount = $(
     hash === "training" ? "#trainingKeyboardMount" : "#freeKeyboardMount",
   );
-  if (mount && $("#keyboard")) mount.append($("#ledPreview"), $("#keyboard"));
+  if (mount && $("#keyboard")) mount.append($("#ledPreview"));
   if (hash !== "training") pauseActiveTraining();
 }
 window.addEventListener("hashchange", route);
@@ -96,10 +123,17 @@ function keyboard() {
   release();
   const box = $("#keyboard");
   box.replaceChildren();
+  let whites = 0;
+  const leading = [1, 3, 6, 8, 10].includes(config.baseNote % 12) ? 12 : 0;
   for (let n = config.baseNote; n < config.baseNote + config.keys; n++) {
     const key = document.createElement("button");
     key.type = "button";
     key.className = "key" + ([1, 3, 6, 8, 10].includes(n % 12) ? " black" : "");
+    const black = key.classList.contains("black");
+    const center = leading + whites * 40 + (black ? 0 : 20);
+    key.style.left = center - (black ? 12 : 20) + "px";
+    key.dataset.center = center;
+    if (!black) whites++;
     key.textContent = noteName(n);
     key.title = "MIDI " + n;
     key.dataset.noteValue = n;
@@ -121,6 +155,7 @@ function keyboard() {
         toast("MIDI-Werte prüfen.", true);
         return;
       }
+      soundOn(n, velocity);
       held.set(e.pointerId, { note: n, channel, key });
       key.classList.add("pressed");
       noteCommand({ note: n, velocity, channel, on: true });
@@ -130,6 +165,7 @@ function keyboard() {
       if (!h) return;
       held.delete(e.pointerId);
       if (![...held.values()].some((v) => v.note === h.note)) {
+        soundOff(h.note);
         key.classList.remove("pressed");
         noteCommand({
           note: h.note,
@@ -158,8 +194,13 @@ function keyboard() {
     });
     box.append(key);
   }
+  const width = leading + whites * 40 + 12;
+  box.style.width = width + "px";
+  $("#ledStrip").style.width = width + "px";
+  lastLedKey = "";
 }
 function release() {
+  silence();
   if (!held.size) return commandQueue;
   held.clear();
   document
@@ -343,6 +384,86 @@ $("#wifiForm").onsubmit = (e) => {
     toast("Verbindungstest gestartet.");
   });
 };
+let hostnameLoaded = false;
+$("#hostname").oninput = () => {
+  hostnameLoaded = true;
+  $("#hostnamePreview").textContent =
+    "http://" + $("#hostname").value.trim().toLowerCase() + ".local/";
+};
+$("#hostnameForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const button = e.target.querySelector("button");
+    button.disabled = true;
+    try {
+      const reply = await api("network", {
+        hostname: $("#hostname").value.trim().toLowerCase(),
+      });
+      $("#hostname").value = reply.hostname;
+      $("#hostname").oninput();
+      $("#hostnameResult").textContent =
+        "Gespeichert. Der Trainer startet neu. Danach im gleichen WLAN http://" +
+        reply.hostname +
+        ".local/ öffnen oder die aktuelle IP-Adresse verwenden.";
+      toast("Hostname gespeichert. Neustart …");
+    } catch (error) {
+      $("#hostnameResult").textContent = error.message;
+      throw error;
+    } finally {
+      button.disabled = false;
+    }
+  });
+};
+function renderNetwork(s) {
+  function definitionList(id, values) {
+    const dl = $(id);
+    dl.replaceChildren();
+    for (const [name, value] of Object.entries(values)) {
+      const dt = document.createElement("dt"),
+        dd = document.createElement("dd");
+      dt.textContent = name;
+      dd.textContent = value;
+      dl.append(dt, dd);
+    }
+  }
+  const address = (value) => (!value || value === "0.0.0.0" ? "—" : value);
+  const station = (value) => (s.connected ? address(value) : "—");
+  definitionList("#wifiStationInfo", {
+    Status: s.wifiState || "—",
+    "Netzwerk (SSID)": s.connected ? s.ssid : "Nicht verbunden",
+    Adressvergabe: "Automatisch (DHCP)",
+    "IPv4-Adresse": station(s.ip),
+    Subnetzmaske: station(s.subnet),
+    "Gateway / Router": station(s.gateway),
+    "DNS-Server 1": station(s.dns1),
+    "DNS-Server 2": station(s.dns2),
+    "MAC-Adresse": s.mac || "—",
+    Signalstärke:
+      s.connected && Number.isFinite(s.rssi) ? s.rssi + " dBm" : "—",
+    "Aktiver Hostname": s.hostname || "—",
+    mDNS: s.connected
+      ? s.mdns
+        ? "Aktiv"
+        : "Nicht aktiv"
+      : "Erst bei Verbindung zum Router aktiv",
+  });
+  definitionList("#wifiApInfo", {
+    Status: s.ap ? "Aktiv" : "Ausgeschaltet",
+    "Netzwerk (SSID)": s.ap ? "MIDI-Trainer-Setup" : "—",
+    "IPv4-Adresse": s.ap ? address(s.apIp) : "—",
+    Subnetzmaske: s.ap ? address(s.apMask) : "—",
+    "MAC-Adresse": s.apMac || "—",
+  });
+  $("#mdnsAddress").hidden = !(s.connected && s.mdns && s.hostname);
+  if (s.hostname) {
+    $("#mdnsAddressLink").textContent = "http://" + s.hostname + ".local/";
+    $("#mdnsAddressLink").href = "http://" + s.hostname + ".local/";
+    if (!hostnameLoaded) {
+      $("#hostname").value = s.hostname;
+      $("#hostname").oninput();
+    }
+  }
+}
 $("#setup").onclick = () =>
   run(async () => {
     await api("setup", {});
@@ -367,6 +488,7 @@ $("#reset").onclick = () => {
     });
 };
 function renderStatus(s) {
+  renderNetwork(s);
   if (s.training) renderTraining(s.training);
   $("#connection").textContent = s.connected
     ? "WLAN verbunden"
@@ -536,6 +658,7 @@ function renderTraining(t) {
       t.lastErrorNote === n && (t.held || []).includes(n),
     );
   });
+  renderScore();
   paintTrainingTime();
 }
 function paintTrainingTime() {
@@ -570,12 +693,20 @@ $("#trainingMode").onchange = () => {
 $("#trainingMode").onchange();
 $("#importMidi").onclick = () =>
   run(async () => {
+    importedSteps = null;
+    $('#trainingPreset option[value="custom"]').disabled = true;
+    $("#importResult").textContent = "";
     const file = $("#midiFile").files[0];
     if (!file) throw Error("Bitte eine MIDI-Datei auswählen.");
-    if (file.size > 262144) throw Error("MIDI-Datei ist größer als 256 KiB.");
+    if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
     const result = window.MidiFile.parse(await file.arrayBuffer(), {
       channel: Number($("#importChannel").value),
       transpose: Number($("#importTranspose").value),
+      startStep: Number($("#importStart").value) - 1,
+      minNote: $("#importRange").checked ? config.baseNote : 0,
+      maxNote: $("#importRange").checked
+        ? config.baseNote + config.keys - 1
+        : 127,
     });
     importedSteps = result.steps;
     const option = $('#trainingPreset option[value="custom"]');
@@ -589,10 +720,28 @@ $("#importMidi").onclick = () =>
       file.name +
       ": " +
       result.steps.length +
-      " Einsätze. Tempo: " +
+      " Einsätze (" +
+      (result.startStep + 1) +
+      "–" +
+      (result.startStep + result.steps.length) +
+      " von " +
+      result.totalSteps +
+      "). Tempo: " +
       result.bpm +
-      " BPM. Zum Üben oben starten." +
-      (result.tempoChanges ? " Tempoänderungen werden vereinheitlicht." : "");
+      " BPM (Übung: " +
+      $("#trainingBpm").value +
+      " BPM). Zum Üben oben starten." +
+      (result.tempoChanges ? " Tempoänderungen werden vereinheitlicht." : "") +
+      (result.quantized ? " Einsätze auf 1/32-Noten gerastert." : "") +
+      (result.droppedNotes
+        ? " " +
+          result.droppedNotes +
+          " Noten außerhalb der Tastatur ausgelassen."
+        : "") +
+      " Belegte Kanäle: " +
+      result.channels.join(", ") +
+      ". Für den nächsten Abschnitt Start-Einsatz ändern und erneut übernehmen.";
+    $("#importStart").max = result.totalSteps;
   });
 
 function renderLedPreview(snapshot, force = false) {
@@ -614,54 +763,377 @@ function renderLedPreview(snapshot, force = false) {
   if (!force && key === lastLedKey) return;
   lastLedKey = key;
   const strip = $("#ledStrip");
-  if (strip.children.length !== count) {
+  const keys = [...document.querySelectorAll(".key")];
+  if (strip.children.length !== keys.length) {
     strip.replaceChildren();
-    for (let index = 0; index < count; index++) {
+    keys.forEach((pianoKey) => {
       const cell = document.createElement("span");
       cell.className = "led-cell";
-      cell.dataset.led = index;
+      cell.dataset.noteValue = pianoKey.dataset.noteValue;
       cell.setAttribute("role", "img");
       const dot = document.createElement("span");
       dot.className = "led-dot";
       dot.setAttribute("aria-hidden", "true");
       const number = document.createElement("span");
       number.className = "led-index";
-      number.textContent = index;
       number.setAttribute("aria-hidden", "true");
       cell.append(dot, number);
       strip.append(cell);
-    }
-  }
-  const noteLabels = Array.from({ length: count }, () => []);
-  if (config && config.count === count) {
-    config.mapping.forEach((offset, note) => {
-      if (offset < 0) return;
-      let index = config.first + offset;
-      if (config.reversed) index = count - 1 - index;
-      if (index >= 0 && index < count)
-        noteLabels[index].push(noteName(note) + " (" + note + ")");
     });
   }
   let lit = 0;
-  for (let index = 0; index < count; index++) {
-    const hex = frame.slice(index * 6, index * 6 + 6),
-      value = parseInt(hex, 16),
-      on = value !== 0,
-      cell = strip.children[index];
+  keys.forEach((pianoKey, i) => {
+    const note = Number(pianoKey.dataset.noteValue),
+      cell = strip.children[i];
+    let index = -1;
+    if (config && config.count === count && config.mapping[note] >= 0) {
+      index = config.first + config.mapping[note];
+      if (config.reversed) index = count - 1 - index;
+      if (index < 0 || index >= count) index = -1;
+    }
+    cell.style.left = pianoKey.dataset.center + "px";
+    const hex = index < 0 ? "000000" : frame.slice(index * 6, index * 6 + 6);
+    const on = parseInt(hex, 16) !== 0;
     if (on) lit++;
     cell.classList.toggle("lit", on);
+    cell.classList.toggle("unmapped", index < 0);
+    if (index < 0) delete cell.dataset.led;
+    else cell.dataset.led = index;
     cell.dataset.color = "#" + hex;
     cell.style.setProperty("--led-color", "#" + hex);
+    cell.querySelector(".led-index").textContent = index < 0 ? "–" : index;
     const label =
-      "LED " +
-      index +
-      " · " +
-      (noteLabels[index].join(" / ") || "keine MIDI-Zuordnung") +
+      noteName(note) +
+      " (" +
+      note +
+      ") · " +
+      (index < 0 ? "keine MIDI-Zuordnung" : "LED " + index) +
       " · " +
       (on ? "an #" + hex : "aus");
     cell.title = label;
     cell.setAttribute("aria-label", label);
-  }
+  });
   $("#ledPreviewInfo").textContent =
-    count + " LEDs · GPIO " + pin + " · " + brightness + " % · " + lit + " an";
+    count +
+    " LEDs · GPIO " +
+    pin +
+    " · " +
+    brightness +
+    " % · " +
+    lit +
+    " Tastenanzeigen an";
+}
+
+// Local, opt-in synthesis. No samples, CDN or sound generation on the ESP32.
+function audioReady() {
+  const Audio = window.AudioContext || window.webkitAudioContext;
+  if (!Audio)
+    throw Error("Dieser Browser unterstützt keine Web-Audio-Ausgabe.");
+  if (!audioContext) audioContext = new Audio();
+  if (audioContext.state === "suspended") return audioContext.resume();
+  return Promise.resolve();
+}
+$("#soundEnabled").onchange = () => {
+  if (!$("#soundEnabled").checked) {
+    silence();
+    return;
+  }
+  try {
+    audioReady().catch(audioError);
+  } catch (e) {
+    audioError(e);
+  }
+};
+function audioError(e) {
+  $("#soundEnabled").checked = false;
+  silence();
+  toast("Tonausgabe: " + e.message, true);
+}
+function soundOn(note, velocity) {
+  if (!$("#soundEnabled").checked) return;
+  try {
+    audioReady().catch(audioError);
+    soundOff(note);
+    const now = audioContext.currentTime,
+      gain = audioContext.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(
+      (0.12 * velocity) / 127,
+      now + 0.008,
+    );
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 6);
+    gain.connect(audioContext.destination);
+    const oscillators = [1, 2, 3].map((harmonic) => {
+      const oscillator = audioContext.createOscillator();
+      const level = audioContext.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value =
+        440 * Math.pow(2, (note - 69) / 12) * harmonic;
+      level.gain.value = 1 / (harmonic * harmonic);
+      oscillator.connect(level);
+      level.connect(gain);
+      oscillator.start(now);
+      oscillator.stop(now + 6.1);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        level.disconnect();
+      };
+      return oscillator;
+    });
+    const voice = { gain, oscillators };
+    voices.set(note, voice);
+    oscillators[0].addEventListener("ended", () => {
+      if (voices.get(note) === voice) voices.delete(note);
+      gain.disconnect();
+    });
+  } catch (e) {
+    audioError(e);
+  }
+}
+function soundOff(note) {
+  const voice = voices.get(note);
+  if (!voice || !audioContext) return;
+  const now = audioContext.currentTime;
+  voice.gain.gain.cancelScheduledValues(now);
+  voice.gain.gain.setTargetAtTime(0.0001, now, 0.025);
+  voice.oscillators.forEach((oscillator) => oscillator.stop(now + 0.15));
+  voices.delete(note);
+}
+function silence() {
+  [...voices.keys()].forEach(soundOff);
+}
+
+// Code-native notation: pitch preview from the same rolling device sequence as training.
+function scorePreference(id, fallback) {
+  try {
+    const value = localStorage.getItem(id);
+    return value === null ? fallback : value === "true";
+  } catch {
+    return fallback;
+  }
+}
+$("#showScore").checked = scorePreference("showScore", false);
+$("#scoreLabels").checked = scorePreference("scoreLabels", true);
+for (const id of ["showScore", "scoreLabels"]) {
+  $("#" + id).onchange = () => {
+    try {
+      localStorage.setItem(id, $("#" + id).checked);
+    } catch {}
+    renderScore();
+  };
+}
+function scoreName(note) {
+  return noteName(note).replace(/^B/, "H");
+}
+function renderScore() {
+  const enabled = $("#showScore").checked;
+  $("#scorePanel").hidden = !enabled;
+  if (!enabled) return;
+  const t = trainingView;
+  const steps = t && t.state !== "idle" ? (t.upcoming || []).slice(0, 6) : [];
+  const labels = $("#scoreLabels").checked;
+  const cacheKey = JSON.stringify([t?.state, t?.total, steps, labels]);
+  if (cacheKey === lastScoreKey) return;
+  lastScoreKey = cacheKey;
+  const viewport = $("#scoreViewport");
+  viewport.replaceChildren();
+  if (!steps.length) {
+    $("#scoreSummary").textContent =
+      t?.state === "completed"
+        ? "Übung abgeschlossen."
+        : "Starte eine Übung, um die Noten zu sehen.";
+    return;
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  function element(tag, attrs = {}, text) {
+    const node = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([key, value]) =>
+      node.setAttribute(key, value),
+    );
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  const width = 140 + steps.length * 116;
+  const svg = element("svg", {
+    viewBox: `0 0 ${width} 330`,
+    width,
+    height: 330,
+    role: "img",
+    "aria-label": "Notenvorschau im Violin- und Bassschlüssel",
+  });
+  const title = element("title", {}, "Aktueller Einsatz und folgende Noten");
+  svg.append(title);
+  for (const bottom of [110, 230]) {
+    for (let i = 0; i < 5; i++)
+      svg.append(
+        element("line", {
+          x1: 30,
+          y1: bottom - i * 10,
+          x2: width - 12,
+          y2: bottom - i * 10,
+          class: "staff-line",
+        }),
+      );
+  }
+  svg.append(
+    element("text", { x: 36, y: 106, class: "score-clef" }, "𝄞"),
+    element("text", { x: 38, y: 223, class: "score-clef bass" }, "𝄢"),
+  );
+  svg.append(
+    element("text", { x: 30, y: 45, class: "score-caption" }, "Violin"),
+    element("text", { x: 30, y: 170, class: "score-caption" }, "Bass"),
+  );
+  steps.forEach((step, column) => {
+    const x = 140 + column * 116;
+    const group = element("g", {
+      class: "score-step" + (column === 0 ? " current" : ""),
+      "data-step": step.index,
+    });
+    group.append(
+      element(
+        "title",
+        {},
+        "Einsatz " +
+          (step.index + 1) +
+          ": " +
+          (step.notes.length ? step.notes.map(scoreName).join(" + ") : "Pause"),
+      ),
+    );
+    if (column === 0)
+      group.append(
+        element("rect", {
+          x: x - 43,
+          y: 12,
+          width: 102,
+          height: 300,
+          rx: 10,
+          class: "score-current",
+        }),
+      );
+    group.append(
+      element(
+        "text",
+        { x, y: 31, "text-anchor": "middle", class: "score-caption" },
+        column === 0 ? "Aktuell" : "+" + column,
+      ),
+    );
+    const noteNames = [];
+    const positions = new Map();
+    step.notes.forEach((original) => {
+      let note = original,
+        shift = 0;
+      while (note > 84) {
+        note -= 12;
+        shift++;
+      }
+      while (note < 36) {
+        note += 12;
+        shift--;
+      }
+      const treble = original >= 60;
+      const natural = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6][note % 12];
+      const position = Math.floor(note / 12 - 1) * 7 + natural;
+      const bottom = treble ? 110 : 230,
+        top = bottom - 40;
+      const y = bottom - (position - (treble ? 30 : 18)) * 5;
+      const collision =
+        positions.has(y) || positions.has(y - 5) || positions.has(y + 5);
+      const nx = x + (collision ? 14 : 0);
+      positions.set(y, true);
+      for (let ledger = bottom + 10; ledger <= y; ledger += 10)
+        group.append(
+          element("line", {
+            x1: nx - 13,
+            x2: nx + 13,
+            y1: ledger,
+            y2: ledger,
+            class: "ledger-line",
+          }),
+        );
+      for (let ledger = top - 10; ledger >= y; ledger -= 10)
+        group.append(
+          element("line", {
+            x1: nx - 13,
+            x2: nx + 13,
+            y1: ledger,
+            y2: ledger,
+            class: "ledger-line",
+          }),
+        );
+      const head = element("ellipse", {
+        cx: nx,
+        cy: y,
+        rx: 8,
+        ry: 5.5,
+        transform: `rotate(-18 ${nx} ${y})`,
+        class: "score-note",
+        "data-note": original,
+      });
+      head.append(
+        element("title", {}, scoreName(original) + ", MIDI " + original),
+      );
+      group.append(head);
+      if ([1, 3, 6, 8, 10].includes(note % 12))
+        group.append(
+          element("text", { x: nx - 26, y: y + 5, class: "score-sharp" }, "♯"),
+        );
+      if (shift)
+        group.append(
+          element(
+            "text",
+            { x: nx + 12, y: y - 9, class: "score-octave" },
+            (Math.abs(shift) === 1 ? "8" : 7 * Math.abs(shift) + 1) +
+              (shift > 0 ? "va" : "vb"),
+          ),
+        );
+      noteNames.push(scoreName(original));
+    });
+    if (!step.notes.length)
+      group.append(
+        element(
+          "text",
+          { x, y: 139, "text-anchor": "middle", class: "score-rest" },
+          "Pause",
+        ),
+      );
+    if (labels) {
+      // Two short lines keep chords readable without changing the staff spacing.
+      for (let line = 0; line < 2; line++)
+        group.append(
+          element(
+            "text",
+            {
+              x,
+              y: 270 + line * 15,
+              "text-anchor": "middle",
+              class: "score-note-name",
+            },
+            noteNames.slice(line * 4, line * 4 + 4).join(" "),
+          ),
+        );
+    }
+    group.append(
+      element(
+        "text",
+        { x, y: 306, "text-anchor": "middle", class: "score-caption" },
+        (step.ticks / 480).toLocaleString("de-DE", {
+          maximumFractionDigits: 3,
+        }) + " ♩ Abstand",
+      ),
+    );
+    svg.append(group);
+  });
+  viewport.append(svg);
+  $("#scoreSummary").textContent =
+    "Einsatz " +
+    (steps[0].index + 1) +
+    " von " +
+    t.total +
+    ": " +
+    (steps[0].notes.length
+      ? labels
+        ? steps[0].notes.map(scoreName).join(" + ")
+        : steps[0].notes.length + " Töne"
+      : "Pause") +
+    (t.state === "paused" ? " · pausiert" : "");
 }

@@ -11,16 +11,30 @@
   </head>
   <body>
     <header>
-      <a class="brand" href="#dashboard"
-        ><span class="mark">▥</span
-        ><span
-          >PIANO<span class="muted"> / TRAINER</span
-          ><small>MIDI LED STUDIO · TRAINING</small></span
-        ></a
-      ><span id="connection" class="badge">Verbinde …</span>
+      <div class="header-start">
+        <button
+          id="toggleNavigation"
+          class="secondary nav-toggle"
+          type="button"
+          aria-controls="mainNavigation"
+          aria-expanded="true"
+          aria-label="Menü ausblenden"
+          title="Menü ausblenden"
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
+        <a class="brand" href="#dashboard"
+          ><span class="mark">▥</span
+          ><span
+            >PIANO<span class="muted"> / TRAINER</span
+            ><small>MIDI LED STUDIO · TRAINING</small></span
+          ></a
+        >
+      </div>
+      <span id="connection" class="badge">Verbinde …</span>
     </header>
     <div class="layout">
-      <nav aria-label="Hauptnavigation">
+      <nav id="mainNavigation" aria-label="Hauptnavigation">
         <a href="#dashboard">Übersicht</a><a href="#training">Training</a
         ><a href="#control">LED-Steuerung</a
         ><a href="#config">LED-Konfiguration</a
@@ -75,22 +89,29 @@
                     >Lade LED-Zustand …</span
                   >
                 </div>
-                <div
-                  id="ledStrip"
-                  class="led-strip"
-                  role="group"
-                  aria-label="Simulierter LED-Streifen"
-                ></div>
+                <label class="sound-toggle"
+                  ><input id="soundEnabled" type="checkbox" /> Klaviertöne
+                  (Browser-Synthesizer)</label
+                >
+                <div class="piano-scroll">
+                  <div
+                    id="ledStrip"
+                    class="led-strip"
+                    role="group"
+                    aria-label="Simulierter LED-Streifen"
+                  ></div>
+                  <div
+                    id="keyboard"
+                    class="keyboard"
+                    aria-label="Virtuelle Klaviertastatur"
+                  ></div>
+                </div>
                 <p class="hint">
-                  LED-Indizes ab 0 · Farben aus dem ESP32-Ausgabepuffer, zur
-                  besseren Sichtbarkeit aufgehellt.
+                  Eine Anzeige pro Taste · Nummer = physische LED, – = nicht
+                  zugeordnet. Farben aus dem ESP32-Ausgabepuffer, zur besseren
+                  Sichtbarkeit aufgehellt.
                 </p>
               </div>
-              <div
-                id="keyboard"
-                class="keyboard"
-                aria-label="Virtuelle Klaviertastatur"
-              ></div>
             </div>
             <p class="hint">
               Horizontal wischen für alle Tasten · MIDI-Noten werden auf den
@@ -190,8 +211,8 @@
             <p class="hint">
               Blau: nächste Note · Grün: gespielt · Rot: falsche Taste. Akkorde
               gleichzeitig drücken und für den nächsten Einsatz neu anschlagen.
-              Der Rhythmus bewertet den Anschlag, nicht die Haltedauer. Ohne
-              Audioausgabe der Klaviertöne.
+              Der Rhythmus bewertet den Anschlag, nicht die Haltedauer.
+              Klaviertöne lassen sich über der Tastatur einschalten.
             </p>
           </article>
           <article class="training-stage">
@@ -222,6 +243,26 @@
               ><span>Trefferquote <b id="trainingAccuracy">0 %</b></span
               ><span>Timing Ø <b id="trainingTiming">—</b></span>
             </div>
+            <label class="check-option"
+              ><input id="showScore" type="checkbox" /> Noten anzeigen (mit
+              Vorschau)</label
+            >
+            <div id="scorePanel" hidden>
+              <label class="check-option"
+                ><input id="scoreLabels" type="checkbox" checked /> Notennamen
+                als Lernhilfe</label
+              >
+              <div id="scoreViewport" class="score-viewport"></div>
+              <p id="scoreSummary" class="hint" role="status"></p>
+              <p class="hint">
+                Blau: aktueller Einsatz · rechts: die nächsten fünf Einsätze.
+                Violin- und Bassschlüssel, Vorzeichen gelten jeweils nur für den
+                angezeigten Ton. H entspricht der Taste B in der MIDI-Tastatur.
+                Die Ansicht zeigt Tonhöhen und Einsatzabstände in
+                Viertelschlägen, keine vollständige Partitur mit originalen
+                Notenlängen, Taktart oder Pedal.
+              </p>
+            </div>
             <div id="trainingKeyboardMount"></div>
             <button id="trainingRelease" class="secondary">
               Alle Tasten loslassen
@@ -236,8 +277,9 @@
             <h2>Eigene MIDI-Datei üben</h2>
             <p>
               Die Datei wird lokal im Browser gelesen. Es werden nur die
-              Noteneinsätze als Übung an den ESP32 gesendet. MIDI 0/1, bis 256
-              KiB, höchstens 128 Einsätze und 8 gleichzeitige Noten.
+              Noteneinsätze eines gewählten Abschnitts an den ESP32 gesendet.
+              MIDI 0/1, bis 2 MiB und 250.000 Ereignisse. Pro Abschnitt
+              höchstens 128 Einsätze und 8 gleichzeitige Noten.
             </p>
             <div class="fields">
               <label
@@ -261,6 +303,17 @@
                   value="0"
               /></label>
             </div>
+            <label
+              >Abschnitt ab Einsatz (1-basiert)<input
+                id="importStart"
+                type="number"
+                min="1"
+                value="1"
+            /></label>
+            <label class="check-option"
+              ><input id="importRange" type="checkbox" checked /> Nur Noten im
+              konfigurierten Tastaturbereich übernehmen</label
+            >
             <button id="importMidi" class="secondary">
               Datei als Übung übernehmen
             </button>
@@ -405,6 +458,59 @@
         <section id="wifi" class="page" hidden>
           <p class="eyebrow">VERBINDUNG</p>
           <h1>WLAN-Einstellungen</h1>
+          <article>
+            <h2>Aktuelle IP-Konfiguration</h2>
+            <h3>Verbindung zum Router</h3>
+            <dl id="wifiStationInfo">
+              <dt>Status</dt>
+              <dd>Wird geladen …</dd>
+            </dl>
+            <p id="mdnsAddress" hidden>
+              Lokale Geräteadresse: <a id="mdnsAddressLink"></a>
+            </p>
+            <h3>Einrichtungs-WLAN</h3>
+            <dl id="wifiApInfo">
+              <dt>Status</dt>
+              <dd>Wird geladen …</dd>
+            </dl>
+          </article>
+          <article>
+            <h2>Hostname und lokale Adresse</h2>
+            <form id="hostnameForm">
+              <label
+                >Hostname<input
+                  id="hostname"
+                  name="hostname"
+                  type="text"
+                  minlength="1"
+                  maxlength="31"
+                  pattern="[A-Za-z0-9]([A-Za-z0-9-]{0,29}[A-Za-z0-9])?"
+                  placeholder="midi-trainer"
+                  required
+                  autocomplete="off"
+                  autocapitalize="none"
+                  spellcheck="false"
+              /></label>
+              <p class="hint">
+                1–31 Zeichen, Buchstaben a–z, Ziffern und Bindestriche; ohne
+                .local. Der Hostname muss im Netzwerk eindeutig sein.
+              </p>
+              <p>
+                Lokale Adresse nach dem Neustart:
+                <b id="hostnamePreview">http://midi-trainer.local/</b>
+              </p>
+              <button type="submit">
+                Hostname speichern &amp; neu starten
+              </button>
+            </form>
+            <p id="hostnameResult" role="status"></p>
+            <p class="hint">
+              mDNS macht den Trainer im selben lokalen Netzwerk unter seinem
+              Namen erreichbar, sofern Netzwerk und Browser mDNS unterstützen.
+              Im Setup-WLAN bleibt http://192.168.4.1/ erreichbar. DDNS für
+              Zugriff über das Internet ist hier nicht eingerichtet.
+            </p>
+          </article>
           <article>
             <h2>Mit deinem Netzwerk verbinden</h2>
             <p>
