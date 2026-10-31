@@ -4,7 +4,13 @@ Dieses Projekt ist **vibe coded**: Es entsteht im Dialog mit einem KI-Coding-Age
 
 Der Trainer soll dabei helfen, **Klavier oder Keyboard zu lernen**. Dazu wird eine LED-Leiste auf das Keyboard beziehungsweise Klavier geklebt und so ausgerichtet, dass die LEDs die zugehörigen Tasten markieren. Bei Übungen und MIDI-Stücken zeigen die LEDs an, welche Tasten als Nächstes gespielt werden sollen. Die optionale Notenansicht hilft zusätzlich beim Notenlesen. Die aktuelle C3-Version verwendet simulierte MIDI-Eingaben über die virtuelle Tastatur; die Anbindung eines echten Instruments ist eine spätere Erweiterung.
 
-Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mit 4 MB Flash** und einen WS2812B-Streifen. Die Firmware bietet WLAN-Einrichtung, lokale deutsche Weboberfläche, persistente LED-Konfiguration, Animationen und eine virtuelle, mehrstimmige MIDI-Tastatur. Für Phase 1 wird kein MIDI-Kabel benötigt.
+Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mit 4 MB Flash** und einen WS2812B-Streifen. Die Firmware bietet WLAN-Einrichtung, lokale deutsch-/englischsprachige Weboberfläche, persistente LED-Konfiguration, Animationen und eine virtuelle, mehrstimmige MIDI-Tastatur. Für Phase 1 wird kein MIDI-Kabel benötigt.
+
+## Sprache · Firmware 1.10.0
+
+Oben rechts lässt sich **Deutsch / English** ohne Neuladen umschalten. Die Auswahl bleibt pro Browser gespeichert. Menüs, Hilfetexte, Einstellungen, Lektionen, Fortschritt, Notenvorschau und Geräteantworten werden übersetzt. Eine laufende Übung oder Wiedergabe und noch nicht gespeicherte Formulareingaben bleiben erhalten. Die Notenvorschau verwendet Deutsch H und Englisch B; MIDI-Nummern und Tonhöhen ändern sich nicht.
+
+Die Übersetzungen liegen lokal in [de.json](data/i18n/de.json) und [en.json](data/i18n/en.json). Weitere Sprachen werden in [languages.json](data/i18n/languages.json) eingetragen und als zusätzliche JSON-Datei abgelegt. Es werden keine Übersetzungsdienste benötigt. [Anleitung für weitere Sprachen](docs/I18N.md). Firmware **und** LittleFS müssen für diese Version aktualisiert werden. Das serielle Diagnoseprotokoll bleibt deutsch; technische API-Kennungen, Dateinamen, SSIDs und Bestätigungswörter werden nicht verändert.
 
 ## Lektionen und Tastaturgrößen · Firmware 1.9.0
 

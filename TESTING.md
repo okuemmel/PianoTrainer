@@ -9,7 +9,7 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
 | `pio test -e native` | 20 von 20 Tests bestanden |
-| `npm test` | 52 von 52 Browser-/MIDI-Tests bestanden |
+| `npm test` | 58 von 58 Browser-/MIDI-/Sprachtests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -18,7 +18,7 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 Speicherbelegung laut finalem Linkergebnis:
 
 - Statischer RAM: **50.796 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.158.768 / 1.572.864 Bytes (73,7 %)**.
+- Anwendung im Flash: **1.166.476 / 1.572.864 Bytes (74,2 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -32,6 +32,14 @@ C++: Standardkonfiguration, erlaubte/gesperrte GPIOs, Bereichsgrenzen, unzuläss
 DOM: 49 virtuelle Tasten, 128 Zuordnungen, GPIO-Auswahl, geordnete mehrstimmige Note-On/Off-Ereignisse, Freigabe bei Fokusverlust und Seitenwechsel, typisierte Konfigurationsdaten samt Schreibzugriffsheader, WLAN-Auswahl und Passwortlöschung im Formular. Ein SSID-Name mit HTML-Zeichen wird als Text dargestellt.
 
 Die DOM-Tests verwenden jsdom und simulierte API-Antworten. Sie bestätigen weder die reale Firmware-HTTP-Authentifizierung noch die visuelle Darstellung auf iPad/Safari. Ein sichtbarer Browserlauf war hier mangels Browser-Ausführungswerkzeug nicht möglich.
+
+## Deutsch und Englisch · Firmware 1.10.0
+
+58 Node-Tests und 20 native Tests bestanden, ebenso Formatprüfung, JavaScript-Syntax, C3-Firmwarebuild und LittleFS-Build. Die neuen Prüfungen bestätigen identische Schlüssel in beiden Katalogen sowie die Abdeckung der statischen HTML-Texte, Attribute, sämtlicher Lektionsbeschreibungen und Übungstitel. Eine zusätzliche Sprache aus der Sprachliste wird mit demselben Loader geladen; fehlende Texte fallen auf Deutsch zurück. Fehlerhafte Sprachdateien, erneutes Laden nach Fehlern und konkurrierende Sprachwechsel sind abgedeckt.
+
+DOM-Prüfungen schalten eine laufende Übung und den Player zwischen Deutsch und Englisch um. Dabei bleiben die MIDI-Befehlsanzahl, Wiedergabeposition, Tastaturelemente und nicht gespeicherte Formularwerte unverändert. Alle 128 bearbeitbaren Notenzuordnungen bleiben im DOM erhalten, einschließlich einer geänderten Zuordnung. Lektionsziele, Feedback, Playerklang-Bezeichnung, Notennamen H/B, Notenpausen, Dezimalformat und zugängliche Beschriftungen wechseln mit. Die gespeicherte englische Browserpräferenz wird beim Start wiederhergestellt. Die Prüfungen bestätigen keine visuelle Safari-Darstellung oder hörbare Audioausgabe während des Sprachwechsels.
+
+Firmware 1.10.0 und das endgültige LittleFS-Image wurden per USB übertragen und beide Hashes verifiziert. Ein Uploadversuch traf auf den vorübergehend fehlenden USB-Port; nach dessen Wiedererscheinen gelang die Wiederholung. Die Geräte-API meldete Firmware 1.10.0 und ein eingebundenes Dateisystem. Die echte Sprachliste wurde abgerufen und mit dem Projekt verglichen. Nach Zeitüberschreitungen bei unkomprimierten Katalogen wurde die automatische Gzip-Erzeugung und -Auslieferung ergänzt. Beide Sprachdateien wurden anschließend vollständig über die Geräte-IP abgerufen: Deutsch 53.009 Bytes / 12.419 Bytes komprimiert, Englisch 51.370 / 17.628 Bytes. Die entpackten HTTP-Antworten stimmen bytegenau mit den Quelldateien überein; `Content-Encoding: gzip`, `Vary: Accept-Encoding` und der JSON-Inhaltstyp wurden bestätigt. Das USB-Log zeigte beide Übertragungen mit vollständigen Bytezahlen. Die erzeugten Archive wurden zusätzlich lokal entpackt und mit den JSON-Dateien verglichen. Serienprotokoll, Geräte-API und HTTP-Abrufe sind Hardwareprüfungen; das tatsächliche Umschalten im Safari-Browser bleibt manuell zu prüfen.
 
 ## Lektionen und Tastaturprofile · Firmware 1.9.0
 

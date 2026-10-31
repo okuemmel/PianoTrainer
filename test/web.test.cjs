@@ -7,6 +7,7 @@ const script = fs.readFileSync("data/app.js", "utf8");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 async function setup(
   library = { folder: "", user: "", hasPassword: false, hasCa: false },
+  language = "de",
 ) {
   const dom = new JSDOM(html, {
     url: "http://192.168.4.1/",
@@ -17,10 +18,11 @@ async function setup(
   let course = [
     {
       id: "first-note",
-      title: "1. Erster Ton",
+      title: "1. Deinen ersten Ton finden",
       chapter: "1 · Erste Töne",
-      goal: "Vier Anschläge",
-      instruction: "Taste loslassen und neu spielen.",
+      goal: "Vier bewusste Anschläge spielen.",
+      instruction:
+        "Markierte Taste spielen und dazwischen ganz loslassen. Fingersatz-Vorschlag: rechter Daumen.",
       preset: "single",
       mode: "guided",
       bpm: 55,
@@ -105,6 +107,8 @@ async function setup(
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ url, options, body });
     let data = { ok: true };
+    if (url.startsWith("/i18n/"))
+      data = JSON.parse(fs.readFileSync("data" + url, "utf8"));
     if (url === "/api/status")
       data = {
         training,
@@ -224,6 +228,8 @@ async function setup(
           .buffer,
     };
   };
+  dom.window.localStorage.setItem("language", language);
+  dom.window.eval(fs.readFileSync("data/i18n.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/midi-file.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/library.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/piano-audio.js", "utf8"));
@@ -275,7 +281,7 @@ test("49 keys, conservative GPIO choices and 128 mappings render", async (t) => 
   const s = await setup();
   t.after(() => s.w.close());
   assert.equal(s.d.querySelectorAll(".key").length, 49);
-  assert.equal(s.d.querySelectorAll("[data-note]").length, 128);
+  assert.equal(s.d.querySelectorAll("#mapping input[data-note]").length, 128);
   assert.equal(s.d.querySelectorAll("#pin option").length, 10);
   assert.equal(s.d.querySelector("#wifiState").textContent, "Verbunden");
   assert.equal(
@@ -1366,5 +1372,141 @@ test("61, 76 and 88 key profiles save the full MIDI range and retain one centere
   assert.match(
     s.d.querySelector("#keyboardLayoutHint").textContent,
     /28 Tasten ohne LED/,
+  );
+});
+
+test("language switches live without restarting practice, changing form values or sending MIDI", async (t) => {
+  const s = await setup();
+  t.after(() => s.dom.window.close());
+  s.w.location.hash = "training";
+  s.w.dispatchEvent(new s.w.HashChangeEvent("hashchange"));
+  await tick();
+  await tick();
+  s.d.querySelector("#startLesson").click();
+  await tick();
+  await tick();
+  const name = s.d.querySelector("#wifiForm").elements.ssid;
+  name.value = "Übersicht";
+  const mapping = s.d.querySelector('[data-note="60"]');
+  mapping.value = "20";
+  s.deliverTraining({
+    state: "playing",
+    mode: "guided",
+    index: 1,
+    total: 4,
+    expected: [59],
+    upcoming: [
+      { index: 1, ticks: 240, notes: [59] },
+      { index: 2, ticks: 480, notes: [] },
+    ],
+    feedback: "Richtig!",
+    exercise: "1. Deinen ersten Ton finden",
+  });
+  const before = s.calls.filter((c) => c.body).length;
+  const key = s.d.querySelector('[data-note-value="60"].key');
+  await s.w.I18n.setLanguage("en");
+  assert.equal(s.d.documentElement.lang, "en");
+  assert.equal(s.d.querySelector("#languageSelect").value, "en");
+  assert.equal(
+    s.d.querySelector('a[href="#wifi"]').textContent,
+    "Wi-Fi settings",
+  );
+  assert.equal(
+    s.d.querySelector("#lessonSelect").selectedOptions[0].textContent,
+    "1. Find your first note",
+  );
+  assert.match(
+    s.d.querySelector("#lessonGoal").textContent,
+    /Learning goal: Play four deliberate attacks/,
+  );
+  assert.match(
+    s.d.querySelector("#lessonInstruction").textContent,
+    /Suggested finger: right thumb/,
+  );
+  assert.equal(s.d.querySelector("#trainingFeedback").textContent, "Correct!");
+  assert.equal(
+    s.d.querySelector("#trainingState").textContent,
+    "PRACTICE RUNNING",
+  );
+  assert.equal(
+    s.d.querySelector("#trainingExercise").textContent,
+    "1. Find your first note",
+  );
+  assert.match(s.d.querySelector("#scoreViewport").textContent, /B3/);
+  assert.match(s.d.querySelector("#scoreViewport").textContent, /Rest/);
+  assert.match(
+    s.d.querySelector("#scoreViewport").textContent,
+    /0.5 ♩ spacing/,
+  );
+  assert.equal(
+    s.d.querySelector("#scoreViewport svg").getAttribute("aria-label"),
+    "Notation preview in treble and bass clefs",
+  );
+  assert.match(
+    s.d.querySelector(".led-cell").getAttribute("aria-label"),
+    /off/,
+  );
+  assert.equal(name.value, "Übersicht");
+  assert.equal(s.d.querySelectorAll("#mapping input[data-note]").length, 128);
+  assert.equal(s.d.querySelector('[data-note="60"]'), mapping);
+  assert.equal(mapping.value, "20");
+  assert.equal(s.d.querySelector('[data-note-value="60"].key'), key);
+  assert.equal(s.calls.filter((c) => c.body).length, before);
+  assert.equal(s.w.localStorage.getItem("language"), "en");
+  await s.w.I18n.setLanguage("de");
+  assert.equal(
+    s.d.querySelector('a[href="#wifi"]').textContent,
+    "WLAN-Einstellungen",
+  );
+  assert.equal(s.d.querySelector("#trainingState").textContent, "ÜBUNG LÄUFT");
+  assert.match(s.d.querySelector("#scoreViewport").textContent, /H3/);
+  assert.match(
+    s.d.querySelector("#scoreViewport").textContent,
+    /0,5 ♩ Abstand/,
+  );
+  assert.equal(s.calls.filter((c) => c.body).length, before);
+});
+
+test("English preference restores and playback status switches while preserving its position", async (t) => {
+  const s = await setup(undefined, "en");
+  t.after(() => s.dom.window.close());
+  assert.equal(s.d.documentElement.lang, "en");
+  assert.equal(s.d.querySelector("#languageSelect").value, "en");
+  s.w.receivePlaybackSnapshot({
+    state: "playing",
+    position: 12,
+    duration: 50,
+    notes: [],
+    upcoming: [{ index: 4, ticks: 480, notes: [59] }],
+    scoreTotal: 10,
+    sound: "Klavier-Samples",
+    reason: "",
+  });
+  await tick();
+  await tick();
+  const before = s.calls.filter((c) => c.body).length;
+  assert.match(
+    s.d.querySelector("#midiPlaybackStatus").textContent,
+    /Playing.*0:12 \/ 0:50.*Piano samples/,
+  );
+  await s.w.I18n.setLanguage("de");
+  assert.match(
+    s.d.querySelector("#midiPlaybackStatus").textContent,
+    /Spielt.*0:12 \/ 0:50.*Klavier-Samples/,
+  );
+  assert.equal(s.calls.filter((c) => c.body).length, before);
+  await s.w.I18n.setLanguage("en");
+  s.w.receiveTrainingSnapshot({
+    state: "playing",
+    mode: "guided",
+    feedback:
+      "Übung enthält eine Note außerhalb der Tastatur oder ohne LED-Zuordnung: 108",
+    expected: [],
+    total: 1,
+    index: 0,
+  });
+  assert.match(
+    s.d.querySelector("#trainingFeedback").textContent,
+    /Exercise contains a note outside the keyboard range or without an LED mapping: 108/,
   );
 });

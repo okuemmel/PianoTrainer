@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#10151e" />
     <title>MIDI · Piano Trainer</title>
     <link rel="stylesheet" href="/style.css" />
+    <script defer src="/i18n.js"></script>
     <script defer src="/midi-file.js"></script>
     <script defer src="/library.js"></script>
     <script defer src="/piano-audio.js"></script>
@@ -34,7 +35,16 @@
           ></a
         >
       </div>
-      <span id="connection" class="badge">Verbinde …</span>
+      <div class="header-tools">
+        <label class="language-picker"
+          >Sprache
+          <select id="languageSelect" aria-label="Sprache">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <span id="connection" class="badge">Verbinde …</span>
+      </div>
     </header>
     <div class="layout">
       <nav id="mainNavigation" aria-label="Hauptnavigation">
@@ -51,6 +61,12 @@
         </div>
       </nav>
       <main>
+        <p
+          id="languageStatus"
+          class="hint"
+          role="status"
+          aria-live="polite"
+        ></p>
         <section id="dashboard" class="page">
           <p class="eyebrow">DEIN ÜBUNGSPLATZ</p>
           <h1>Musik wird sichtbar.</h1>

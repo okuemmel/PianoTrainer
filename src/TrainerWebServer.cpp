@@ -98,7 +98,28 @@ void TrainerWebServer::file(const char* path, const char* mime) {
                 "Webdateien fehlen. Bitte PlatformIO: Upload Filesystem Image ausführen.");
     return;
   }
-  auto f = LittleFS.open(path, "r");
+  String resource(path);
+  if (resource.startsWith("/i18n/")) {
+    server.sendHeader("Vary", "Accept-Encoding");
+    String accepted = server.header("Accept-Encoding");
+    accepted.toLowerCase();
+    accepted.replace(" ", "");
+    bool gzip = false;
+    int start = 0;
+    while (start < accepted.length()) {
+      int end = accepted.indexOf(',', start);
+      if (end < 0) end = accepted.length();
+      const String token = accepted.substring(start, end);
+      if (token == "gzip" || token.startsWith("gzip;")) {
+        const int quality = token.indexOf("q=");
+        gzip = quality < 0 || token.substring(quality + 2).toFloat() > 0;
+      }
+      start = end + 1;
+    }
+    if (gzip && LittleFS.exists(resource + ".gz")) resource += ".gz";
+  }
+  // Arduino WebServer adds Content-Encoding: gzip for the .gz companion.
+  auto f = LittleFS.open(resource, "r");
   if (!f) {
     Serial.printf("[HTTP] %s -> 503, Webdatei kann nicht geöffnet werden.\n", path);
     server.send(503, "text/plain; charset=utf-8", "Webdatei kann nicht geöffnet werden.");
@@ -116,7 +137,8 @@ void TrainerWebServer::begin(bool filesystemReady) {
   lessonRoutes();
   for (const char* path :
        {"/index.html", "/style.css", "/midi-file.js", "/library.js", "/piano-audio.js",
-        "/piano-samples.bin", "/piano-credits.txt", "/midi-player.js", "/app.js"}) {
+        "/piano-samples.bin", "/piano-credits.txt", "/midi-player.js", "/app.js", "/i18n.js",
+        "/i18n/languages.json", "/i18n/de.json", "/i18n/en.json"}) {
     auto f = fsReady ? LittleFS.open(path, "r") : File();
     if (f) {
       Serial.printf("[HTTP] Webdatei %s bereit (%u Bytes).\n", path,
@@ -125,8 +147,8 @@ void TrainerWebServer::begin(bool filesystemReady) {
       Serial.printf("[HTTP] FEHLER: Webdatei %s fehlt.\n", path);
     }
   }
-  const char* headers[] = {"X-Trainer"};
-  server.collectHeaders(headers, 1);
+  const char* headers[] = {"X-Trainer", "Accept-Encoding"};
+  server.collectHeaders(headers, 2);
   server.on("/", HTTP_GET, [this] { file("/index.html", "text/html; charset=utf-8"); });
   server.on("/style.css", HTTP_GET, [this] { file("/style.css", "text/css"); });
   server.on("/midi-file.js", HTTP_GET, [this] { file("/midi-file.js", "application/javascript"); });
@@ -140,6 +162,7 @@ void TrainerWebServer::begin(bool filesystemReady) {
   server.on("/piano-credits.txt", HTTP_GET,
             [this] { file("/piano-credits.txt", "text/plain; charset=utf-8"); });
   server.on("/app.js", HTTP_GET, [this] { file("/app.js", "application/javascript"); });
+  server.on("/i18n.js", HTTP_GET, [this] { file("/i18n.js", "application/javascript"); });
   server.on("/api/training", HTTP_GET, [this] {
     if (auth()) trainingStatus();
   });
@@ -402,6 +425,20 @@ void TrainerWebServer::begin(bool filesystemReady) {
     rebootAt = millis() + 1000;
   });
   server.onNotFound([this] {
+    // Serve local catalogs, including future languages, without allowing path traversal.
+    const String path = server.uri();
+    if (path.startsWith("/i18n/") && path.endsWith(".json") && path.length() <= 48) {
+      const String name = path.substring(6, path.length() - 5);
+      bool valid = name.length() > 0;
+      for (const char c : name)
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+              c == '-' || c == '_'))
+          valid = false;
+      if (valid && server.method() == HTTP_GET) {
+        file(path.c_str(), "application/json; charset=utf-8");
+        return;
+      }
+    }
     if (server.uri().startsWith("/api/")) {
       error(404, "Endpunkt nicht gefunden.");
       return;

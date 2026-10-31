@@ -1,5 +1,19 @@
 "use strict";
 const $ = (s) => document.querySelector(s);
+$("#languageSelect").onchange = async (event) => {
+  const select = event.target;
+  $("#languageStatus").textContent = "";
+  try {
+    await I18n.setLanguage(select.value);
+  } catch (error) {
+    select.value = I18n.language;
+    $("#languageStatus").textContent = error.message;
+  }
+};
+window.addEventListener("languagechange", () => {
+  lastScoreKey = "";
+  if (config) renderScore();
+});
 let config = null,
   status = null,
   toastTimer,
@@ -41,8 +55,8 @@ function setNavigationCollapsed(collapsed) {
   $(".layout").classList.toggle("navigation-collapsed", collapsed);
   toggle.setAttribute("aria-expanded", String(!collapsed));
   const label = collapsed ? "Menü einblenden" : "Menü ausblenden";
-  toggle.setAttribute("aria-label", label);
-  toggle.title = label;
+  I18n.attr(toggle, "aria-label", () => I18n.t(label));
+  I18n.attr(toggle, "title", () => I18n.t(label));
 }
 let navigationCollapsed =
   window.matchMedia?.("(max-width: 1000px)").matches || false;
@@ -88,7 +102,7 @@ async function api(path, body) {
 }
 function toast(text, error = false) {
   const t = $("#toast");
-  t.textContent = text;
+  I18n.text(t, () => I18n.t(text));
   t.classList.toggle("error", error);
   t.hidden = false;
   clearTimeout(toastTimer);
@@ -162,10 +176,14 @@ function keyboard() {
     key.style.left = center - (black ? 12 : 20) + "px";
     key.dataset.center = center;
     if (!black) whites++;
-    key.textContent = noteName(n);
-    key.title = "MIDI " + n;
+    I18n.text(key, () => I18n.t(noteName(n)));
+    I18n.attr(key, "title", () => I18n.t("MIDI ") + I18n.t(n));
     key.dataset.noteValue = n;
-    key.setAttribute("aria-label", noteName(n) + ", MIDI " + n);
+    I18n.attr(
+      key,
+      "aria-label",
+      () => I18n.t(noteName(n)) + I18n.t(", MIDI ") + I18n.t(n),
+    );
     key.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       midiPlayer.stop("Virtuelle Taste gespielt");
@@ -273,14 +291,17 @@ function renderConfig() {
     config.baseNote <= 48 && config.baseNote + config.keys - 1 >= 76
       ? 60
       : config.baseNote + (config.keys >= 27 ? 12 : 0);
-  $("#ledCount").textContent = config.count + " LEDs";
-  $("#ledState").textContent = "GPIO " + config.pin + " · WS2812B";
+  I18n.text($("#ledCount"), () => I18n.t(config.count) + I18n.t(" LEDs"));
+  I18n.text(
+    $("#ledState"),
+    () => I18n.t("GPIO ") + I18n.t(config.pin) + I18n.t(" · WS2812B"),
+  );
   $("#ledIndex").max = config.count - 1;
   const map = $("#mapping");
   map.replaceChildren();
   config.mapping.forEach((value, n) => {
     const label = document.createElement("label");
-    label.textContent = noteName(n) + " · " + n;
+    I18n.text(label, () => I18n.t(noteName(n)) + I18n.t(" · ") + I18n.t(n));
     const input = document.createElement("input");
     input.type = "number";
     input.min = "-1";
@@ -324,23 +345,30 @@ function syncKeyboardLayout() {
     keys -
       (Number(form.elements.count.value) - Number(form.elements.first.value)),
   );
-  $("#keyboardLayoutHint").textContent =
-    (Number.isInteger(base) && keys > 0 && base >= 0 && base + keys <= 128
-      ? noteName(base) +
-        "–" +
-        noteName(base + keys - 1) +
-        " · MIDI " +
-        base +
-        "–" +
-        (base + keys - 1) +
-        ". "
-      : "") +
-    "Profilwahl bereitet Tastenbereich und fortlaufende LED-Zuordnung vor. Anschließend speichern." +
-    (missing
-      ? " Bei fortlaufender Zuordnung bleiben " +
-        missing +
-        " Tasten ohne LED; LED-Anzahl passend zum tatsächlichen Streifen einstellen."
-      : "");
+  I18n.text(
+    $("#keyboardLayoutHint"),
+    () =>
+      (Number.isInteger(base) && keys > 0 && base >= 0 && base + keys <= 128
+        ? I18n.t(noteName(base)) +
+          I18n.t("–") +
+          I18n.t(noteName(base + keys - 1)) +
+          I18n.t(" · MIDI ") +
+          I18n.t(base) +
+          I18n.t("–") +
+          I18n.t(base + keys - 1) +
+          I18n.t(". ")
+        : I18n.t("")) +
+      I18n.t(
+        "Profilwahl bereitet Tastenbereich und fortlaufende LED-Zuordnung vor. Anschließend speichern.",
+      ) +
+      (missing
+        ? I18n.t(" Bei fortlaufender Zuordnung bleiben ") +
+          I18n.t(missing) +
+          I18n.t(
+            " Tasten ohne LED; LED-Anzahl passend zum tatsächlichen Streifen einstellen.",
+          )
+        : I18n.t("")),
+  );
 }
 $("#keyboardLayout").onchange = () => {
   const option = $("#keyboardLayout").selectedOptions[0];
@@ -383,10 +411,15 @@ const color = () => parseInt($("#color").value.slice(1), 16);
 async function sendLed(body) {
   try {
     await api("led", body);
-    $("#ledResult").textContent =
-      "LED-Befehl vom ESP32 angenommen: " + body.command;
+    I18n.text(
+      $("#ledResult"),
+      () => I18n.t("LED-Befehl vom ESP32 angenommen: ") + I18n.t(body.command),
+    );
   } catch (e) {
-    $("#ledResult").textContent = "LED-Befehl fehlgeschlagen: " + e.message;
+    I18n.text(
+      $("#ledResult"),
+      () => I18n.t("LED-Befehl fehlgeschlagen: ") + I18n.t(e.message),
+    );
     throw e;
   }
 }
@@ -424,7 +457,7 @@ async function scan() {
   try {
     const r = await api("wifi/scan");
     if (r.scanning) {
-      $("#scan").textContent = "Suche läuft …";
+      I18n.text($("#scan"), () => I18n.t("Suche läuft …"));
       scanTimer = setTimeout(scan, 1200);
       return;
     }
@@ -432,12 +465,15 @@ async function scan() {
     r.networks.forEach((n) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.textContent =
-        (n.ssid || "(verstecktes Netzwerk)") +
-        " · " +
-        n.rssi +
-        " dBm" +
-        (n.open ? " · offen" : "");
+      I18n.text(
+        b,
+        () =>
+          I18n.t(n.ssid || "(verstecktes Netzwerk)") +
+          I18n.t(" · ") +
+          I18n.t(n.rssi) +
+          I18n.t(" dBm") +
+          (n.open ? I18n.t(" · offen") : I18n.t("")),
+      );
       b.onclick = () => ($("#wifiForm").elements.ssid.value = n.ssid);
       $("#networks").append(b);
     });
@@ -447,7 +483,7 @@ async function scan() {
     toast(e.message, true);
   }
   $("#scan").disabled = false;
-  $("#scan").textContent = "Netzwerke suchen";
+  I18n.text($("#scan"), () => I18n.t("Netzwerke suchen"));
 }
 $("#scan").onclick = scan;
 $("#wifiForm").onsubmit = (e) => {
@@ -459,16 +495,24 @@ $("#wifiForm").onsubmit = (e) => {
       password: f.elements.password.value,
     });
     f.elements.password.value = "";
-    $("#wifiResult").textContent =
-      "Verbindung wird getestet. Bei Erfolg im Ziel-WLAN die neue IP-Adresse öffnen (siehe Status / serieller Monitor).";
+    I18n.text($("#wifiResult"), () =>
+      I18n.t(
+        "Verbindung wird getestet. Bei Erfolg im Ziel-WLAN die neue IP-Adresse öffnen (siehe Status / serieller Monitor).",
+      ),
+    );
     toast("Verbindungstest gestartet.");
   });
 };
 let hostnameLoaded = false;
 $("#hostname").oninput = () => {
   hostnameLoaded = true;
-  $("#hostnamePreview").textContent =
-    "http://" + $("#hostname").value.trim().toLowerCase() + ".local/";
+  I18n.text(
+    $("#hostnamePreview"),
+    () =>
+      I18n.t("http://") +
+      I18n.t($("#hostname").value.trim().toLowerCase()) +
+      I18n.t(".local/"),
+  );
 };
 $("#hostnameForm").onsubmit = (e) => {
   e.preventDefault();
@@ -481,13 +525,18 @@ $("#hostnameForm").onsubmit = (e) => {
       });
       $("#hostname").value = reply.hostname;
       $("#hostname").oninput();
-      $("#hostnameResult").textContent =
-        "Gespeichert. Der Trainer startet neu. Danach im gleichen WLAN http://" +
-        reply.hostname +
-        ".local/ öffnen oder die aktuelle IP-Adresse verwenden.";
+      I18n.text(
+        $("#hostnameResult"),
+        () =>
+          I18n.t(
+            "Gespeichert. Der Trainer startet neu. Danach im gleichen WLAN http://",
+          ) +
+          reply.hostname +
+          I18n.t(".local/ öffnen oder die aktuelle IP-Adresse verwenden."),
+      );
       toast("Hostname gespeichert. Neustart …");
     } catch (error) {
-      $("#hostnameResult").textContent = error.message;
+      I18n.text($("#hostnameResult"), () => I18n.t(error.message));
       throw error;
     } finally {
       button.disabled = false;
@@ -501,8 +550,8 @@ function renderNetwork(s) {
     for (const [name, value] of Object.entries(values)) {
       const dt = document.createElement("dt"),
         dd = document.createElement("dd");
-      dt.textContent = name;
-      dd.textContent = value;
+      I18n.text(dt, () => I18n.t(name));
+      I18n.text(dd, () => (name === "Netzwerk (SSID)" ? value : I18n.t(value)));
       dl.append(dt, dd);
     }
   }
@@ -536,7 +585,10 @@ function renderNetwork(s) {
   });
   $("#mdnsAddress").hidden = !(s.connected && s.mdns && s.hostname);
   if (s.hostname) {
-    $("#mdnsAddressLink").textContent = "http://" + s.hostname + ".local/";
+    I18n.text(
+      $("#mdnsAddressLink"),
+      () => I18n.t("http://") + s.hostname + I18n.t(".local/"),
+    );
     $("#mdnsAddressLink").href = "http://" + s.hostname + ".local/";
     if (!hostnameLoaded) {
       $("#hostname").value = s.hostname;
@@ -560,7 +612,9 @@ $("#passwordForm").onsubmit = (e) => {
 $("#reset").onclick = () => {
   if (
     prompt(
-      "Zum Löschen aller Einstellungen und Lernfortschritte WERKSRESET eingeben:",
+      I18n.t(
+        "Zum Löschen aller Einstellungen und Lernfortschritte WERKSRESET eingeben:",
+      ),
     ) === "WERKSRESET"
   )
     run(async () => {
@@ -569,22 +623,27 @@ $("#reset").onclick = () => {
     });
 };
 function renderStatus(s) {
-  $("#appVersion").textContent = s.firmware
-    ? "v" + s.firmware
-    : "Version unbekannt";
-  $("#appAuthor").textContent = s.author || "okuemmel";
+  I18n.text($("#appVersion"), () =>
+    s.firmware ? I18n.t("v") + s.firmware : I18n.t("Version unbekannt"),
+  );
+  I18n.text($("#appAuthor"), () => I18n.t(s.author || "okuemmel"));
   renderNetwork(s);
   if (s.training) renderTraining(s.training);
-  $("#connection").textContent = s.connected
-    ? "WLAN verbunden"
-    : "Setup / Offline";
-  $("#wifiState").textContent = s.wifiState;
-  $("#ip").textContent = s.connected ? s.ip : s.ap ? s.apIp : "Keine IP";
-  $("#keyCount").textContent = s.keys + " Tasten";
+  I18n.text($("#connection"), () =>
+    s.connected ? I18n.t("WLAN verbunden") : I18n.t("Setup / Offline"),
+  );
+  I18n.text($("#wifiState"), () => I18n.t(s.wifiState));
+  I18n.text($("#ip"), () =>
+    s.connected ? s.ip : s.ap ? s.apIp : I18n.t("Keine IP"),
+  );
+  I18n.text($("#keyCount"), () => I18n.t(s.keys) + I18n.t(" Tasten"));
   $("#wifiAddress").hidden = !s.connected;
   if (s.connected) {
     $("#wifiAddressLink").href = "http://" + s.ip + "/";
-    $("#wifiAddressLink").textContent = "http://" + s.ip + "/";
+    I18n.text(
+      $("#wifiAddressLink"),
+      () => I18n.t("http://") + s.ip + I18n.t("/"),
+    );
   }
   const info = {
     Board: s.board,
@@ -603,8 +662,8 @@ function renderStatus(s) {
   Object.entries(info).forEach(([k, v]) => {
     const dt = document.createElement("dt"),
       dd = document.createElement("dd");
-    dt.textContent = k;
-    dd.textContent = v;
+    I18n.text(dt, () => I18n.t(k));
+    I18n.text(dd, () => I18n.t(v));
     dl.append(dt, dd);
   });
 }
@@ -615,7 +674,7 @@ async function poll() {
       renderStatus(status);
     }
   } catch (e) {
-    $("#connection").textContent = "Gerät nicht erreichbar";
+    I18n.text($("#connection"), () => I18n.t("Gerät nicht erreichbar"));
   } finally {
     const animated = [
       "sequence",
@@ -643,12 +702,13 @@ setInterval(() => {
     noteCommand({ heartbeat: true });
 }, 900);
 run(async () => {
+  await I18n.ready;
   status = await api("status");
   renderStatus(status);
   status.pins.forEach((pin) => {
     const o = document.createElement("option");
     o.value = pin;
-    o.textContent = "GPIO " + pin;
+    I18n.text(o, () => I18n.t("GPIO ") + I18n.t(pin));
     $("#pin").append(o);
   });
   config = await api("config");
@@ -722,14 +782,20 @@ function renderTraining(t) {
     paused: "PAUSIERT",
     completed: "GESCHAFFT",
   };
-  $("#trainingState").textContent = labels[t.state] || t.state;
-  $("#trainingExercise").textContent = t.exercise || "Freies Spiel";
-  $("#trainingTempo").textContent = t.bpm + " BPM";
-  $("#trainingFeedback").textContent = t.feedback;
-  $("#trainingTarget").textContent =
-    (t.expected || []).map(noteName).join(" + ") ||
-    (t.state === "completed" ? "✓" : "—");
-  $("#trainingPosition").textContent = t.index + " / " + t.total;
+  I18n.text($("#trainingState"), () => I18n.t(labels[t.state] || t.state));
+  I18n.text($("#trainingExercise"), () => I18n.t(t.exercise || "Freies Spiel"));
+  I18n.text($("#trainingTempo"), () => I18n.t(t.bpm) + I18n.t(" BPM"));
+  I18n.text($("#trainingFeedback"), () => I18n.t(t.feedback));
+  I18n.text($("#trainingTarget"), () =>
+    I18n.t(
+      (t.expected || []).map(noteName).join(" + ") ||
+        (t.state === "completed" ? "✓" : "—"),
+    ),
+  );
+  I18n.text(
+    $("#trainingPosition"),
+    () => I18n.t(t.index) + I18n.t(" / ") + I18n.t(t.total),
+  );
   $("#trainingProgress").max = Math.max(1, t.total);
   $("#trainingProgress").value = t.index;
   for (const [id, field] of [
@@ -737,9 +803,11 @@ function renderTraining(t) {
     ["trainingWrong", "wrong"],
     ["trainingMissed", "missed"],
   ])
-    $("#" + id).textContent = t[field];
-  $("#trainingAccuracy").textContent = t.accuracy + " %";
-  $("#trainingTiming").textContent = t.timed ? t.averageTimingMs + " ms" : "—";
+    I18n.text($("#" + id), () => I18n.t(t[field]));
+  I18n.text($("#trainingAccuracy"), () => I18n.t(t.accuracy) + I18n.t(" %"));
+  I18n.text($("#trainingTiming"), () =>
+    t.timed ? I18n.t(t.averageTimingMs) + I18n.t(" ms") : I18n.t("—"),
+  );
   $("#trainingPause").disabled = !trainingRunning();
   $("#trainingResume").disabled = t.state !== "paused";
   document.querySelectorAll(".key").forEach((key) => {
@@ -762,23 +830,32 @@ function renderTraining(t) {
       loadLessons(true).then((loaded) => {
         if (!loaded) return;
         if (t.lessonRecorded && !t.lessonSaved) {
-          $("#lessonStatus").textContent =
-            "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.";
+          I18n.text($("#lessonStatus"), () =>
+            I18n.t(
+              "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.",
+            ),
+          );
           return;
         }
-        $("#lessonStatus").textContent =
-          "Lektion beendet: " +
-          t.accuracy +
-          " % · " +
-          (t.accuracy >= 80
-            ? "Bestanden! Empfehlung für die nächste Lektion wählen."
-            : "Noch einmal üben – Ziel sind 80 %.");
+        I18n.text(
+          $("#lessonStatus"),
+          () =>
+            I18n.t("Lektion beendet: ") +
+            I18n.t(t.accuracy) +
+            I18n.t(" % · ") +
+            (t.accuracy >= 80
+              ? I18n.t("Bestanden! Empfehlung für die nächste Lektion wählen.")
+              : I18n.t("Noch einmal üben – Ziel sind 80 %.")),
+        );
       });
     }
   }
   if (t.lesson && t.lessonRecorded && !t.lessonSaved)
-    $("#lessonStatus").textContent =
-      "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.";
+    I18n.text($("#lessonStatus"), () =>
+      I18n.t(
+        "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.",
+      ),
+    );
 }
 function paintTrainingTime() {
   const t = trainingView;
@@ -799,7 +876,7 @@ function paintTrainingTime() {
       Math.abs(due) <= t.tolerance
         ? "Jetzt spielen!"
         : "Einsatz in " + Math.max(0, due / 1000).toFixed(1) + " s";
-  $("#trainingCountdown").textContent = message;
+  I18n.text($("#trainingCountdown"), () => I18n.t(message));
   $("#beatLight").classList.toggle(
     "beat",
     active && t.timed && (t.elapsedMs + age) % t.beatMs < 100,
@@ -813,7 +890,7 @@ $("#trainingMode").onchange();
 async function importSelectedMidi() {
   importedSteps = null;
   $('#trainingPreset option[value="custom"]').disabled = true;
-  $("#importResult").textContent = "";
+  I18n.text($("#importResult"), () => I18n.t(""));
   const file = remoteMidi || $("#midiFile").files[0];
   if (!file) throw Error("Bitte eine MIDI-Datei auswählen.");
   if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
@@ -829,34 +906,45 @@ async function importSelectedMidi() {
   importedSteps = result.steps;
   const option = $('#trainingPreset option[value="custom"]');
   option.disabled = false;
-  option.textContent = "MIDI: " + file.name;
+  I18n.text(option, () => I18n.t("MIDI: ") + file.name);
   $("#trainingPreset").value = "custom";
   $("#trainingMode").value = "song";
   $("#trainingMode").onchange();
   $("#trainingBpm").value = Math.max(40, Math.min(200, result.bpm));
-  $("#importResult").textContent =
-    file.name +
-    ": " +
-    result.steps.length +
-    " Einsätze (" +
-    (result.startStep + 1) +
-    "–" +
-    (result.startStep + result.steps.length) +
-    " von " +
-    result.totalSteps +
-    "). Tempo: " +
-    result.bpm +
-    " BPM (Übung: " +
-    $("#trainingBpm").value +
-    " BPM). Zum Üben oben starten." +
-    (result.tempoChanges ? " Tempoänderungen werden vereinheitlicht." : "") +
-    (result.quantized ? " Einsätze auf 1/32-Noten gerastert." : "") +
-    (result.droppedNotes
-      ? " " + result.droppedNotes + " Noten außerhalb der Tastatur ausgelassen."
-      : "") +
-    " Belegte Kanäle: " +
-    result.channels.join(", ") +
-    ". Für den nächsten Abschnitt Start-Einsatz ändern und erneut übernehmen.";
+  I18n.text(
+    $("#importResult"),
+    () =>
+      file.name +
+      I18n.t(": ") +
+      I18n.t(result.steps.length) +
+      I18n.t(" Einsätze (") +
+      (I18n.t(result.startStep) + I18n.t(1)) +
+      I18n.t("–") +
+      (I18n.t(result.startStep) + I18n.t(result.steps.length)) +
+      I18n.t(" von ") +
+      I18n.t(result.totalSteps) +
+      I18n.t("). Tempo: ") +
+      I18n.t(result.bpm) +
+      I18n.t(" BPM (Übung: ") +
+      I18n.t($("#trainingBpm").value) +
+      I18n.t(" BPM). Zum Üben oben starten.") +
+      (result.tempoChanges
+        ? I18n.t(" Tempoänderungen werden vereinheitlicht.")
+        : I18n.t("")) +
+      (result.quantized
+        ? I18n.t(" Einsätze auf 1/32-Noten gerastert.")
+        : I18n.t("")) +
+      (result.droppedNotes
+        ? I18n.t(" ") +
+          I18n.t(result.droppedNotes) +
+          I18n.t(" Noten außerhalb der Tastatur ausgelassen.")
+        : I18n.t("")) +
+      I18n.t(" Belegte Kanäle: ") +
+      I18n.t(result.channels.join(", ")) +
+      I18n.t(
+        ". Für den nächsten Abschnitt Start-Einsatz ändern und erneut übernehmen.",
+      ),
+  );
   $("#importStart").max = result.totalSteps;
 }
 $("#importMidi").onclick = () => run(importSelectedMidi);
@@ -872,7 +960,9 @@ function renderLedPreview(snapshot, force = false) {
     !/^[0-9a-f]+$/i.test(frame)
   ) {
     lastLedKey = "";
-    $("#ledPreviewInfo").textContent = "LED-Zustand nicht verfügbar";
+    I18n.text($("#ledPreviewInfo"), () =>
+      I18n.t("LED-Zustand nicht verfügbar"),
+    );
     return;
   }
   lastLedSnapshot = snapshot;
@@ -918,27 +1008,32 @@ function renderLedPreview(snapshot, force = false) {
     else cell.dataset.led = index;
     cell.dataset.color = "#" + hex;
     cell.style.setProperty("--led-color", "#" + hex);
-    cell.querySelector(".led-index").textContent = index < 0 ? "–" : index;
-    const label =
+    I18n.text(cell.querySelector(".led-index"), () =>
+      index < 0 ? I18n.t("–") : I18n.t(index),
+    );
+    const label = () =>
       noteName(note) +
       " (" +
       note +
       ") · " +
-      (index < 0 ? "keine MIDI-Zuordnung" : "LED " + index) +
+      (index < 0 ? I18n.t("keine MIDI-Zuordnung") : "LED " + index) +
       " · " +
-      (on ? "an #" + hex : "aus");
-    cell.title = label;
-    cell.setAttribute("aria-label", label);
+      (on ? I18n.t("an") + " #" + hex : I18n.t("aus"));
+    I18n.attr(cell, "title", label);
+    I18n.attr(cell, "aria-label", label);
   });
-  $("#ledPreviewInfo").textContent =
-    count +
-    " LEDs · GPIO " +
-    pin +
-    " · " +
-    brightness +
-    " % · " +
-    lit +
-    " Tastenanzeigen an";
+  I18n.text(
+    $("#ledPreviewInfo"),
+    () =>
+      I18n.t(count) +
+      I18n.t(" LEDs · GPIO ") +
+      I18n.t(pin) +
+      I18n.t(" · ") +
+      I18n.t(brightness) +
+      I18n.t(" % · ") +
+      I18n.t(lit) +
+      I18n.t(" Tastenanzeigen an"),
+  );
 }
 
 // Local, opt-in audio. Samples are served by the trainer; synthesis is a fallback.
@@ -953,21 +1048,22 @@ function audioReady() {
 $("#soundEnabled").onchange = () => {
   if (!$("#soundEnabled").checked) {
     silence();
-    $("#soundStatus").textContent = "";
+    I18n.text($("#soundStatus"), () => I18n.t(""));
     return;
   }
   try {
     const ready = audioReady();
-    $("#soundStatus").textContent = "Klavier wird geladen …";
+    I18n.text($("#soundStatus"), () => I18n.t("Klavier wird geladen …"));
     ready
       .then(() => window.PianoAudio.bank.prepare(audioContext))
       .then((samples) => {
         pianoSamples = samples;
-        $("#soundStatus").textContent = "Klavier bereit";
+        I18n.text($("#soundStatus"), () => I18n.t("Klavier bereit"));
       })
       .catch((error) => {
-        $("#soundStatus").textContent =
-          "Synthesizer aktiv · Klavier nicht geladen";
+        I18n.text($("#soundStatus"), () =>
+          I18n.t("Synthesizer aktiv · Klavier nicht geladen"),
+        );
         toast("Klavier: " + error.message, true);
       });
   } catch (e) {
@@ -1069,7 +1165,9 @@ for (const id of ["showScore", "scoreLabels"]) {
   };
 }
 function scoreName(note) {
-  return noteName(note).replace(/^B/, "H");
+  return I18n.language === "de"
+    ? noteName(note).replace(/^B/, "H")
+    : noteName(note);
 }
 function renderScore() {
   const enabled = $("#showScore").checked;
@@ -1098,21 +1196,25 @@ function renderScore() {
   const viewport = $("#scoreViewport");
   viewport.replaceChildren();
   if (!steps.length) {
-    $("#scoreSummary").textContent =
+    I18n.text($("#scoreSummary"), () =>
       t?.state === "completed"
         ? playback
-          ? "MIDI-Wiedergabe abgeschlossen."
-          : "Übung abgeschlossen."
-        : "Starte eine Übung oder MIDI-Wiedergabe, um die Noten zu sehen.";
+          ? I18n.t("MIDI-Wiedergabe abgeschlossen.")
+          : I18n.t("Übung abgeschlossen.")
+        : I18n.t(
+            "Starte eine Übung oder MIDI-Wiedergabe, um die Noten zu sehen.",
+          ),
+    );
     return;
   }
   const ns = "http://www.w3.org/2000/svg";
   function element(tag, attrs = {}, text) {
     const node = document.createElementNS(ns, tag);
-    Object.entries(attrs).forEach(([key, value]) =>
-      node.setAttribute(key, value),
-    );
-    if (text !== undefined) node.textContent = text;
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (key === "aria-label") I18n.attr(node, key, () => I18n.t(value));
+      else node.setAttribute(key, value);
+    });
+    if (text !== undefined) I18n.text(node, () => I18n.t(text));
     return node;
   }
   const width = 140 + steps.length * 116;
@@ -1155,10 +1257,12 @@ function renderScore() {
       element(
         "title",
         {},
-        "Einsatz " +
+        I18n.t("Einsatz ") +
           (step.index + 1) +
           ": " +
-          (step.notes.length ? step.notes.map(scoreName).join(" + ") : "Pause"),
+          (step.notes.length
+            ? step.notes.map(scoreName).join(" + ")
+            : I18n.t("score.rest")),
       ),
     );
     if (column === 0)
@@ -1255,7 +1359,7 @@ function renderScore() {
         element(
           "text",
           { x, y: 139, "text-anchor": "middle", class: "score-rest" },
-          "Pause",
+          I18n.t("score.rest"),
         ),
       );
     if (labels) {
@@ -1280,26 +1384,29 @@ function renderScore() {
         { x, y: 306, "text-anchor": "middle", class: "score-caption" },
         step.ticks === 0
           ? "Ende"
-          : (step.ticks / 480).toLocaleString("de-DE", {
+          : (step.ticks / 480).toLocaleString(I18n.locale, {
               maximumFractionDigits: 3,
-            }) + " ♩ Abstand",
+            }) + I18n.t(" ♩ Abstand"),
       ),
     );
     svg.append(group);
   });
   viewport.append(svg);
-  $("#scoreSummary").textContent =
-    (playback ? "MIDI-Player · Einsatz " : "Einsatz ") +
-    (steps[0].index + 1) +
-    " von " +
-    t.total +
-    ": " +
-    (steps[0].notes.length
-      ? labels
-        ? steps[0].notes.map(scoreName).join(" + ")
-        : steps[0].notes.length + " Töne"
-      : "Pause") +
-    (t.state === "paused" ? " · pausiert" : "");
+  I18n.text(
+    $("#scoreSummary"),
+    () =>
+      (playback ? I18n.t("MIDI-Player · Einsatz ") : I18n.t("Einsatz ")) +
+      (I18n.t(steps[0].index) + I18n.t(1)) +
+      I18n.t(" von ") +
+      I18n.t(t.total) +
+      I18n.t(": ") +
+      (steps[0].notes.length
+        ? labels
+          ? I18n.t(steps[0].notes.map(scoreName).join(" + "))
+          : I18n.t(steps[0].notes.length) + I18n.t(" Töne")
+        : I18n.t("score.rest")) +
+      (t.state === "paused" ? I18n.t(" · pausiert") : I18n.t("")),
+  );
 }
 
 // Shared library UI: all sources feed the same local MIDI parser above.
@@ -1319,17 +1426,24 @@ async function loadLibrarySettings() {
     librarySettings = await api("library/config");
     $("#cloudFolder").value = librarySettings.folder || "";
     $("#cloudUser").value = librarySettings.user || "";
-    $("#cloudPasswordHint").textContent = librarySettings.hasPassword
-      ? "Passwort gespeichert. Leer lassen zum Beibehalten."
-      : "Noch kein Passwort gespeichert.";
-    $("#cloudCaHint").textContent = librarySettings.hasCa
-      ? "Eigenes CA-Zertifikat gespeichert."
-      : "Mitgelieferter Zertifikatsspeicher aktiv.";
+    I18n.text($("#cloudPasswordHint"), () =>
+      librarySettings.hasPassword
+        ? I18n.t("Passwort gespeichert. Leer lassen zum Beibehalten.")
+        : I18n.t("Noch kein Passwort gespeichert."),
+    );
+    I18n.text($("#cloudCaHint"), () =>
+      librarySettings.hasCa
+        ? I18n.t("Eigenes CA-Zertifikat gespeichert.")
+        : I18n.t("Mitgelieferter Zertifikatsspeicher aktiv."),
+    );
     if (!librarySettings.folder)
-      $("#libraryStatus").textContent =
-        "Nextcloud-Verzeichnis in den Import-Einstellungen hinterlegen oder MIDIsss durchsuchen.";
+      I18n.text($("#libraryStatus"), () =>
+        I18n.t(
+          "Nextcloud-Verzeichnis in den Import-Einstellungen hinterlegen oder MIDIsss durchsuchen.",
+        ),
+      );
   } catch (error) {
-    $("#libraryStatus").textContent = error.message;
+    I18n.text($("#libraryStatus"), () => I18n.t(error.message));
   }
 }
 function loadCloudListOnce() {
@@ -1345,14 +1459,21 @@ async function libraryDownload(request) {
   try {
     await commandQueue;
     return await libraryClient.run(request, (received, total) => {
-      $("#libraryStatus").textContent =
-        "Lade " +
-        Math.round(received / 1024) +
-        " KiB" +
-        (total > 0 ? " von " + Math.round(total / 1024) + " KiB" : " …");
+      I18n.text(
+        $("#libraryStatus"),
+        () =>
+          I18n.t("Lade ") +
+          I18n.t(Math.round(received / 1024)) +
+          I18n.t(" KiB") +
+          (total > 0
+            ? I18n.t(" von ") +
+              I18n.t(Math.round(total / 1024)) +
+              I18n.t(" KiB")
+            : I18n.t(" …")),
+      );
     });
   } catch (error) {
-    $("#libraryStatus").textContent = error.message;
+    I18n.text($("#libraryStatus"), () => I18n.t(error.message));
     throw error;
   } finally {
     setLibraryBusy(false);
@@ -1367,17 +1488,20 @@ function renderLibraryList(id, result, source) {
       title = document.createElement("strong"),
       detail = document.createElement("small"),
       button = document.createElement("button");
-    title.textContent = file.name;
-    detail.textContent =
+    I18n.text(title, () => file.name);
+    I18n.text(detail, () =>
       source === "nextcloud"
         ? file.size !== null
-          ? Math.round(file.size / 1024) + " KiB"
-          : "MIDI-Datei"
+          ? I18n.t(Math.round(file.size / 1024)) + I18n.t(" KiB")
+          : I18n.t("MIDI-Datei")
         : (file.notes || "") +
-          (file.rating !== null ? " · Bewertung: " + file.rating : "");
+          (file.rating !== null
+            ? I18n.t(" · Bewertung: ") + I18n.t(file.rating)
+            : I18n.t("")),
+    );
     text.append(title, detail);
     button.type = "button";
-    button.textContent = "Übernehmen";
+    I18n.text(button, () => I18n.t("Übernehmen"));
     button.className = "secondary";
     button.onclick = () =>
       run(async () => {
@@ -1403,23 +1527,30 @@ function renderLibraryList(id, result, source) {
         try {
           await importSelectedMidi();
         } catch (error) {
-          $("#importResult").textContent = error.message;
-          $("#libraryStatus").textContent = error.message;
+          I18n.text($("#importResult"), () => I18n.t(error.message));
+          I18n.text($("#libraryStatus"), () => I18n.t(error.message));
           throw error;
         }
-        $("#libraryStatus").textContent =
-          "Geladen: " +
-          file.name +
-          ". Kanal, Transposition und Abschnitt unten einstellen; erneut übernehmen, um die Auswahl anzuwenden.";
+        I18n.text(
+          $("#libraryStatus"),
+          () =>
+            I18n.t("Geladen: ") +
+            file.name +
+            I18n.t(
+              ". Kanal, Transposition und Abschnitt unten einstellen; erneut übernehmen, um die Auswahl anzuwenden.",
+            ),
+        );
       });
     const listen = document.createElement("button");
     listen.type = "button";
     listen.className = "secondary";
-    listen.textContent = "Anhören";
+    I18n.text(listen, () => I18n.t("Anhören"));
     listen.onclick = () => {
       let unlock;
       try {
-        $("#midiPlaybackStatus").textContent = "Klavier wird geladen …";
+        I18n.text($("#midiPlaybackStatus"), () =>
+          I18n.t("Klavier wird geladen …"),
+        );
         unlock = midiPlayer.unlock();
       } catch (error) {
         toast(error.message, true);
@@ -1455,13 +1586,16 @@ function renderLibraryList(id, result, source) {
   });
   if (!result.files.length) {
     const row = document.createElement("li");
-    row.textContent = "Keine MIDI-Dateien gefunden.";
+    I18n.text(row, () => I18n.t("Keine MIDI-Dateien gefunden."));
     list.append(row);
   }
   if (result.truncated) {
     const row = document.createElement("li");
-    row.textContent =
-      "Liste begrenzt. Suche eingrenzen bzw. kleineren Nextcloud-Ordner verwenden.";
+    I18n.text(row, () =>
+      I18n.t(
+        "Liste begrenzt. Suche eingrenzen bzw. kleineren Nextcloud-Ordner verwenden.",
+      ),
+    );
     list.append(row);
   }
 }
@@ -1476,10 +1610,14 @@ async function refreshCloud() {
       librarySettings.folder,
     );
     renderLibraryList("#cloudFiles", result, "nextcloud");
-    $("#libraryStatus").textContent =
-      result.files.length + " Nextcloud-MIDIs im hinterlegten Verzeichnis.";
+    I18n.text(
+      $("#libraryStatus"),
+      () =>
+        I18n.t(result.files.length) +
+        I18n.t(" Nextcloud-MIDIs im hinterlegten Verzeichnis."),
+    );
   } catch (error) {
-    $("#libraryStatus").textContent = error.message;
+    I18n.text($("#libraryStatus"), () => I18n.t(error.message));
     throw error;
   }
 }
@@ -1487,7 +1625,7 @@ $("#cloudRefresh").onclick = () => run(refreshCloud);
 $("#libraryCancel").onclick = () =>
   run(async () => {
     await libraryClient.cancel();
-    $("#libraryStatus").textContent = "Download wird abgebrochen …";
+    I18n.text($("#libraryStatus"), () => I18n.t("Download wird abgebrochen …"));
   });
 let lastLibrarySearch = 0;
 let onlineSearch = { source: "midisss", query: "", page: 1, pages: 1 };
@@ -1518,16 +1656,31 @@ async function searchOnline(page = 1, repeat = false) {
       pages: result.pages || 1,
     };
     const name = source === "midicollection" ? "MIDICollection" : "MIDIsss";
-    $("#onlineLibraryTitle").textContent = name + "-Suchergebnisse";
-    $("#libraryStatus").textContent =
-      result.files.length + " " + name + "-Treffer auf dieser Seite.";
+    I18n.text(
+      $("#onlineLibraryTitle"),
+      () => I18n.t(name) + I18n.t("-Suchergebnisse"),
+    );
+    I18n.text(
+      $("#libraryStatus"),
+      () =>
+        I18n.t(result.files.length) +
+        I18n.t(" ") +
+        I18n.t(name) +
+        I18n.t("-Treffer auf dieser Seite."),
+    );
     $("#searchPager").hidden = onlineSearch.pages <= 1;
-    $("#searchPageInfo").textContent =
-      "Seite " + onlineSearch.page + " / " + onlineSearch.pages;
+    I18n.text(
+      $("#searchPageInfo"),
+      () =>
+        I18n.t("Seite ") +
+        I18n.t(onlineSearch.page) +
+        I18n.t(" / ") +
+        I18n.t(onlineSearch.pages),
+    );
     $("#searchPrevious").disabled = onlineSearch.page <= 1;
     $("#searchNext").disabled = onlineSearch.page >= onlineSearch.pages;
   } catch (error) {
-    $("#libraryStatus").textContent = error.message;
+    I18n.text($("#libraryStatus"), () => I18n.t(error.message));
     throw error;
   }
 }
@@ -1542,8 +1695,12 @@ $("#searchNext").onclick = () =>
 $("#onlineSource").onchange = () => {
   $("#searchFiles").replaceChildren();
   $("#searchPager").hidden = true;
-  $("#onlineLibraryTitle").textContent =
-    $("#onlineSource").selectedOptions[0].textContent + "-Suchergebnisse";
+  I18n.text(
+    $("#onlineLibraryTitle"),
+    () =>
+      I18n.t($("#onlineSource").selectedOptions[0].textContent) +
+      I18n.t("-Suchergebnisse"),
+  );
 };
 $("#midiFile").onchange = () => {
   midiPlayer.stop("Andere Datei ausgewählt");
@@ -1573,10 +1730,13 @@ $("#cloudSettingsForm").onsubmit = (event) => {
       cloudListLoaded = false;
       $("#cloudFiles").replaceChildren();
       await loadLibrarySettings();
-      $("#cloudSettingsResult").textContent =
-        "Gespeichert. Die MIDI-Liste wird beim Öffnen des Trainings geladen.";
+      I18n.text($("#cloudSettingsResult"), () =>
+        I18n.t(
+          "Gespeichert. Die MIDI-Liste wird beim Öffnen des Trainings geladen.",
+        ),
+      );
     } catch (error) {
-      $("#cloudSettingsResult").textContent = error.message;
+      I18n.text($("#cloudSettingsResult"), () => I18n.t(error.message));
       throw error;
     }
   });
@@ -1590,8 +1750,9 @@ function renderPlayback(view) {
     ":" +
     String(Math.floor(seconds % 60)).padStart(2, "0");
   $("#pauseMidi").disabled = !["playing", "paused"].includes(view.state);
-  $("#pauseMidi").textContent =
-    view.state === "paused" ? "Fortsetzen" : "Pause";
+  I18n.text($("#pauseMidi"), () =>
+    view.state === "paused" ? I18n.t("Fortsetzen") : I18n.t("Pause"),
+  );
   $("#stopMidi").disabled = !["playing", "paused"].includes(view.state);
   $("#pauseMidi").hidden = $("#pauseMidi").disabled;
   $("#stopMidi").hidden = $("#stopMidi").disabled;
@@ -1601,15 +1762,18 @@ function renderPlayback(view) {
     completed: "Fertig",
     stopped: "Gestoppt",
   }[view.state];
-  $("#midiPlaybackStatus").textContent =
-    label +
-    (playbackName ? ": " + playbackName : "") +
-    " · " +
-    format(view.position) +
-    " / " +
-    format(view.duration) +
-    (view.reason ? " · " + view.reason : "") +
-    (view.sound ? " · " + view.sound : "");
+  I18n.text(
+    $("#midiPlaybackStatus"),
+    () =>
+      I18n.t(label) +
+      (playbackName ? ": " + playbackName : "") +
+      I18n.t(" · ") +
+      I18n.t(format(view.position)) +
+      I18n.t(" / ") +
+      I18n.t(format(view.duration)) +
+      (view.reason ? I18n.t(" · ") + I18n.t(view.reason) : I18n.t("")) +
+      (view.sound ? I18n.t(" · ") + I18n.t(view.sound) : I18n.t("")),
+  );
   renderScore();
 }
 async function playSelectedMidi() {
@@ -1630,7 +1794,7 @@ async function playSelectedMidi() {
 $("#listenMidi").onclick = () => {
   let unlock;
   try {
-    $("#midiPlaybackStatus").textContent = "Klavier wird geladen …";
+    I18n.text($("#midiPlaybackStatus"), () => I18n.t("Klavier wird geladen …"));
     unlock = midiPlayer.unlock();
   } catch (error) {
     toast(error.message, true);
@@ -1721,7 +1885,7 @@ function renderPresetCatalog(presets) {
     .map((p) => {
       const option = document.createElement("option");
       option.value = p.id;
-      option.textContent = p.title;
+      I18n.text(option, () => I18n.t(p.title));
       return option;
     });
   if (!options.length) return;
@@ -1733,25 +1897,37 @@ function renderPresetCatalog(presets) {
 function renderLessonInfo() {
   const lesson = lessons.find((item) => item.id === $("#lessonSelect").value);
   if (!lesson) return;
-  $("#lessonGoal").textContent =
-    "Lernziel: " + lesson.goal + " · " + lesson.bpm + " BPM";
-  $("#lessonInstruction").textContent = lesson.instruction;
-  $("#lessonStatus").textContent = lesson.runs
-    ? "★".repeat(lesson.stars) +
-      " · Bestwert " +
-      lesson.best +
-      " % · " +
-      lesson.runs +
-      " abgeschlossene Durchläufe" +
-      (lesson.passed ? " · Bestanden" : " · Noch üben")
-    : "Noch nicht abgeschlossen. Schritt für Schritt anfangen.";
+  I18n.text(
+    $("#lessonGoal"),
+    () =>
+      I18n.t("Lernziel: ") +
+      I18n.t(lesson.goal) +
+      I18n.t(" · ") +
+      I18n.t(lesson.bpm) +
+      I18n.t(" BPM"),
+  );
+  I18n.text($("#lessonInstruction"), () => I18n.t(lesson.instruction));
+  I18n.text($("#lessonStatus"), () =>
+    lesson.runs
+      ? I18n.t("★".repeat(lesson.stars)) +
+        I18n.t(" · Bestwert ") +
+        I18n.t(lesson.best) +
+        I18n.t(" % · ") +
+        I18n.t(lesson.runs) +
+        I18n.t(" abgeschlossene Durchläufe") +
+        (lesson.passed ? I18n.t(" · Bestanden") : I18n.t(" · Noch üben"))
+      : I18n.t("Noch nicht abgeschlossen. Schritt für Schritt anfangen."),
+  );
   if (
     trainingView?.lesson === lesson.id &&
     trainingView.lessonRecorded &&
     !trainingView.lessonSaved
   )
-    $("#lessonStatus").textContent =
-      "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.";
+    I18n.text($("#lessonStatus"), () =>
+      I18n.t(
+        "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.",
+      ),
+    );
 }
 function renderLessons() {
   const field = $("#lessonSelect");
@@ -1762,17 +1938,24 @@ function renderLessons() {
   for (const lesson of lessons) {
     if (!groups.has(lesson.chapter)) {
       const group = document.createElement("optgroup");
-      group.label = lesson.chapter;
+      I18n.attr(group, "label", () => I18n.t(lesson.chapter));
       groups.set(lesson.chapter, group);
       field.append(group);
     }
     const option = document.createElement("option");
     option.value = lesson.id;
-    option.textContent =
-      lesson.title +
-      (lesson.runs
-        ? " · " + "★".repeat(lesson.stars) + " " + lesson.best + " %"
-        : "");
+    I18n.text(
+      option,
+      () =>
+        I18n.t(lesson.title) +
+        (lesson.runs
+          ? I18n.t(" · ") +
+            I18n.t("★".repeat(lesson.stars)) +
+            I18n.t(" ") +
+            I18n.t(lesson.best) +
+            I18n.t(" %")
+          : I18n.t("")),
+    );
     groups.get(lesson.chapter).append(option);
   }
   field.value = lessons.some((item) => item.id === selected)
@@ -1784,21 +1967,26 @@ function renderLessons() {
   const stars = lessons.reduce((sum, item) => sum + item.stars, 0);
   $("#lessonProgress").max = lessons.length;
   $("#lessonProgress").value = passed;
-  $("#lessonProgressText").textContent =
-    passed +
-    "/" +
-    lessons.length +
-    " bestanden · " +
-    stars +
-    "/" +
-    lessons.length * 3 +
-    " Sterne";
+  I18n.text(
+    $("#lessonProgressText"),
+    () =>
+      I18n.t(passed) +
+      I18n.t("/") +
+      I18n.t(lessons.length) +
+      I18n.t(" bestanden · ") +
+      I18n.t(stars) +
+      I18n.t("/") +
+      I18n.t(lessons.length * 3) +
+      I18n.t(" Sterne"),
+  );
   field.disabled = false;
   $("#startLesson").disabled = false;
   $("#nextLesson").disabled = !recommended;
-  $("#nextLesson").textContent = recommended
-    ? "Empfehlung wählen"
-    : "Alle Lektionen bestanden";
+  I18n.text($("#nextLesson"), () =>
+    recommended
+      ? I18n.t("Empfehlung wählen")
+      : I18n.t("Alle Lektionen bestanden"),
+  );
   renderLessonInfo();
 }
 function loadLessons(force = false) {
@@ -1819,7 +2007,7 @@ function loadLessons(force = false) {
       return true;
     })
     .catch((error) => {
-      $("#lessonStatus").textContent = error.message;
+      I18n.text($("#lessonStatus"), () => I18n.t(error.message));
       return false;
     })
     .finally(() => {
@@ -1847,13 +2035,18 @@ $("#startLesson").onclick = () =>
     if (Number.isInteger(lesson.root)) $("#trainingRoot").value = lesson.root;
     $("#songTimed").value = lesson.mode === "song" ? "true" : "false";
     $("#trainingMode").onchange();
-    $("#lessonStatus").textContent =
-      lesson.title + " läuft. " + lesson.instruction;
+    I18n.text(
+      $("#lessonStatus"),
+      () =>
+        I18n.t(lesson.title) + I18n.t(" läuft. ") + I18n.t(lesson.instruction),
+    );
   });
 $("#resetLessonProgress").onclick = () => {
   if (
     !confirm(
-      "Lernfortschritt für alle Nutzer dieses Trainers zurücksetzen? WLAN und LED-Einstellungen bleiben erhalten.",
+      I18n.t(
+        "Lernfortschritt für alle Nutzer dieses Trainers zurücksetzen? WLAN und LED-Einstellungen bleiben erhalten.",
+      ),
     )
   )
     return;
@@ -1862,7 +2055,9 @@ $("#resetLessonProgress").onclick = () => {
     lastLessonCompletion = "";
     if (reply.training) renderTraining(reply.training);
     await loadLessons(true);
-    $("#lessonStatus").textContent = "Lernfortschritt zurückgesetzt.";
+    I18n.text($("#lessonStatus"), () =>
+      I18n.t("Lernfortschritt zurückgesetzt."),
+    );
     toast("Lernfortschritt zurückgesetzt.");
   });
 };
