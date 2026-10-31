@@ -139,7 +139,7 @@
       voice.gain.disconnect();
       this.voices.delete(voice);
     }
-    stop() {
+    stop(reason = "") {
       if (this.timer !== null) this.timers.clearInterval(this.timer);
       this.timer = null;
       for (const voice of [...this.voices]) this.release(voice);
@@ -150,9 +150,10 @@
         position: 0,
         duration: this.performance?.duration || 0,
         notes: [],
+        reason,
       });
     }
-    pause() {
+    pause(reason = "") {
       if (this.state !== "playing") return;
       const position = this.context.currentTime - this.started;
       this.stop();
@@ -163,6 +164,7 @@
         position,
         duration: this.performance.duration,
         notes: [],
+        reason,
       });
     }
     resume() {

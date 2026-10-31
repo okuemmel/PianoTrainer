@@ -54,10 +54,11 @@ test("MIDI player schedules exact pitch and release, supports pause/resume and c
   });
   await player.unlock();
   player.play({
-    duration: 1.5,
+    duration: 120,
     notes: [
       { note: 69, velocity: 127, time: 0, duration: 0.5 },
       { note: 72, velocity: 80, time: 0.5, duration: 1 },
+      { note: 60, velocity: 100, time: 90, duration: 1 },
     ],
   });
   assert.equal(oscillators[0].frequency.value, 440);
@@ -81,10 +82,14 @@ test("MIDI player schedules exact pitch and release, supports pause/resume and c
   assert.ok(
     oscillators.some((o) => Math.abs(o.frequency.value - 523.25113) < 0.01),
   );
-  player.context.currentTime = 4;
+  player.context.currentTime = 20;
+  tick();
+  assert.equal(player.state, "playing");
+  assert.equal(player.position, 18.25);
+  player.context.currentTime = 123;
   tick();
   assert.equal(player.state, "completed");
   assert.equal(player.voices.size, 0);
   assert.equal(tick, null);
-  assert.equal(notifications.at(-1).position, 1.5);
+  assert.equal(notifications.at(-1).position, 120);
 });

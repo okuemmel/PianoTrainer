@@ -9,7 +9,7 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
 | `pio test -e native` | 18 von 18 Tests bestanden |
-| `npm test` | 42 von 42 Browser-/MIDI-Tests bestanden |
+| `npm test` | 43 von 43 Browser-/MIDI-Tests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -194,3 +194,10 @@ Tatsächlich am C3 mit Firmware 1.7.0 geprüft:
 - Wiedergabe von MIDI-Note 60: Vorschau aktiv, Note im Gerätezustand und LED-Ausgabepuffer sichtbar, Trainingszähler unverändert. Explizites Beenden und Ablauf nach 3,3 Sekunden ohne Lebenszeichen setzen den LED-Puffer wieder auf Aus.
 
 Die Prüfung des Ausgabepuffers bestätigt den Softwarepfad, kein optisch beobachtetes Leuchten. Hörbare Browserausgabe, sichtbare Safari-Darstellung und eine konkrete Nutzer-Nextcloud bleiben manuelle Prüfungen.
+
+
+## Korrektur: vorzeitiger Wiedergabestopp bei Fokusverlust
+
+Nach der Rückmeldung „Ton stoppt, Status Gestoppt“ wurde der direkte `midiPlayer.stop()` im Fenster-Blur-Handler gefunden. Ein solcher Fokusverlust setzte bislang die Wiedergabe auf Anfang zurück. Der Handler gibt jetzt weiterhin manuelle Tasten frei und pausiert aktives Training, lässt den Datei-Player jedoch laufen. Erst eine tatsächlich versteckte Seite pausiert die Wiedergabe mit erhaltener Position. Der Status nennt den Grund; auch Tasteneingabe, Übungsstart, Dateiauswahl und bewusstes Stoppen sind als Auslöser erkennbar.
+
+Regression: Datei-Player bei Sekunde sieben, Fenster-Blur ohne Stopp, Hintergrundwechsel mit Pause und LED-Freigabe, Fortsetzen bei Sekunde sieben und explizites Stoppen mit sichtbarer Begründung. Der Audio-Unit-Test läuft zusätzlich über 18 Sekunden einer zweiminütigen Folge und endet erst am vorgesehenen Dateiende. Diese Prüfungen verwenden jsdom und einen AudioContext-Testdouble. Der konkrete Fokusauslöser auf dem Nutzergerät ist damit noch nicht beobachtet.

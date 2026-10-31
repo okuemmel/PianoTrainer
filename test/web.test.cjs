@@ -146,7 +146,7 @@ async function setup(
   dom.window.eval(fs.readFileSync("data/midi-player.js", "utf8"));
   dom.window.eval(
     script +
-      "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus; window.receivePlaybackSnapshot = renderPlayback;",
+      "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus; window.receivePlaybackSnapshot = renderPlayback; window.testMidiPlayer = midiPlayer;",
   );
   await tick();
   await tick();
@@ -905,4 +905,55 @@ test("listening coalesces duplicate pitches, releases LEDs on pause and never se
     false,
   );
   dom.window.close();
+});
+
+test("file listening survives window blur and backgrounding pauses at the current position with a reason", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.w.location.hash = "training";
+  await tick();
+  await tick();
+  const player = s.w.testMidiPlayer;
+  player.Audio = class {};
+  player.context = { state: "running", currentTime: 7 };
+  player.started = 0;
+  player.performance = { duration: 120, notes: [] };
+  player.state = "playing";
+  player.position = 7;
+  s.w.receivePlaybackSnapshot({
+    state: "playing",
+    position: 7,
+    duration: 120,
+    notes: [{ note: 60, velocity: 100 }],
+  });
+  s.w.dispatchEvent(new s.w.Event("blur"));
+  assert.equal(player.state, "playing");
+  assert.equal(player.position, 7);
+  Object.defineProperty(s.d, "hidden", { configurable: true, value: true });
+  s.d.dispatchEvent(new s.w.Event("visibilitychange"));
+  assert.equal(player.state, "paused");
+  assert.equal(player.position, 7);
+  assert.match(
+    s.d.querySelector("#midiPlaybackStatus").textContent,
+    /Pausiert.*0:07.*Hintergrund/,
+  );
+  await tick();
+  await tick();
+  assert.deepEqual(
+    s.calls.filter((c) => c.url === "/api/playback").at(-1).body,
+    { active: false },
+  );
+  Object.defineProperty(s.d, "hidden", { configurable: true, value: false });
+  s.d.dispatchEvent(new s.w.Event("visibilitychange"));
+  s.d.querySelector("#pauseMidi").click();
+  await tick();
+  await tick();
+  assert.equal(player.state, "playing");
+  assert.equal(player.position, 7);
+  s.d.querySelector("#stopMidi").click();
+  assert.equal(player.state, "stopped");
+  assert.match(
+    s.d.querySelector("#midiPlaybackStatus").textContent,
+    /Stopp gedrückt/,
+  );
 });

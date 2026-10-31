@@ -126,7 +126,7 @@ function route() {
   );
   if (mount && $("#keyboard")) mount.append($("#ledPreview"));
   if (hash !== "training") {
-    midiPlayer.stop();
+    midiPlayer.stop("Trainingsseite verlassen");
     pauseActiveTraining();
   }
   if (hash === "training") loadCloudListOnce();
@@ -161,7 +161,7 @@ function keyboard() {
     key.setAttribute("aria-label", noteName(n) + ", MIDI " + n);
     key.addEventListener("pointerdown", (e) => {
       e.preventDefault();
-      midiPlayer.stop();
+      midiPlayer.stop("Virtuelle Taste gespielt");
       if (e.isTrusted) key.setPointerCapture(e.pointerId);
       if (held.has(e.pointerId)) return;
       const channel = Number($("#sendChannel").value),
@@ -231,13 +231,13 @@ function release() {
   return noteCommand({ release: true });
 }
 window.addEventListener("blur", () => {
-  midiPlayer.stop();
+  // Release live input, but keep the independent file player running.
   release();
   pauseActiveTraining();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
-    midiPlayer.stop();
+    midiPlayer.pause("Seite im Hintergrund · mit Fortsetzen weiterhören");
     release();
     pauseActiveTraining();
   }
@@ -603,7 +603,7 @@ function trainingRunning() {
   return trainingView && ["playing", "countin"].includes(trainingView.state);
 }
 async function trainingCommand(body) {
-  if (body.command !== "pause") midiPlayer.stop();
+  if (body.command !== "pause") midiPlayer.stop("Trainingssteuerung verwendet");
   await release();
   await commandQueue;
   const reply = await api("training", body);
@@ -620,7 +620,7 @@ function pauseActiveTraining() {
 $("#trainingForm").onsubmit = (e) => {
   e.preventDefault();
   run(async () => {
-    midiPlayer.stop();
+    midiPlayer.stop("Übung gestartet");
     const preset = $("#trainingPreset").value;
     if (preset === "custom" && !importedSteps)
       throw Error("Zuerst eine MIDI-Datei importieren.");
@@ -1204,7 +1204,7 @@ function loadCloudListOnce() {
 }
 async function libraryDownload(request) {
   if (libraryBusy) throw Error("Bitte den laufenden Download abwarten.");
-  midiPlayer.stop();
+  midiPlayer.stop("MIDI-Bibliothek wird geladen");
   setLibraryBusy(true);
   try {
     await commandQueue;
@@ -1290,7 +1290,7 @@ function renderLibraryList(id, result, source) {
       }
       run(async () => {
         await unlock;
-        midiPlayer.stop();
+        midiPlayer.stop("Andere MIDI ausgewählt");
         const bytes = await libraryDownload(
           source === "nextcloud"
             ? { source, action: "file", name: file.name }
@@ -1409,7 +1409,7 @@ $("#onlineSource").onchange = () => {
     $("#onlineSource").selectedOptions[0].textContent + "-Suchergebnisse";
 };
 $("#midiFile").onchange = () => {
-  midiPlayer.stop();
+  midiPlayer.stop("Andere Datei ausgewählt");
   remoteMidi = null;
 };
 $("#cloudSettingsForm").onsubmit = (event) => {
@@ -1469,7 +1469,8 @@ function renderPlayback(view) {
     " · " +
     format(view.position) +
     " / " +
-    format(view.duration);
+    format(view.duration) +
+    (view.reason ? " · " + view.reason : "");
 }
 async function playSelectedMidi() {
   const file = remoteMidi || $("#midiFile").files[0];
@@ -1504,7 +1505,7 @@ $("#pauseMidi").onclick = () => {
       midiPlayer.resume();
     });
 };
-$("#stopMidi").onclick = () => midiPlayer.stop();
+$("#stopMidi").onclick = () => midiPlayer.stop("Stopp gedrückt");
 $("#midiVolume").oninput = () =>
   midiPlayer.setVolume(Number($("#midiVolume").value) / 100);
 
