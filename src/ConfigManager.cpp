@@ -80,6 +80,17 @@ bool ConfigManager::begin() {
     }
   }
   cloud.clear();
+  DynamicJsonDocument progress(4096);
+  if (!deserializeJson(progress, prefs.getString("lessons", "{}"))) {
+    for (size_t i = 0; i < LessonCount; ++i) {
+      auto item = progress[Lessons[i].id];
+      if (item["runs"].is<uint16_t>() && item["best"].is<int>() && item["best"].as<int>() >= 0 &&
+          item["best"].as<int>() <= 100) {
+        lessonResults[i].runs = item["runs"];
+        lessonResults[i].best = lessonResults[i].runs ? item["best"].as<int>() : 0;
+      }
+    }
+  }
   DynamicJsonDocument doc(8192);
   String error;
   auto stored = prefs.getString("led", "");
@@ -88,6 +99,28 @@ bool ConfigManager::begin() {
     led = LedConfig();
     Serial.println("Ungültige LED-Konfiguration: Standardwerte geladen.");
   }
+  return true;
+}
+bool ConfigManager::saveLessonResult(size_t index, int accuracy) {
+  if (index >= LessonCount) return false;
+  auto next = lessonResults;
+  if (!recordLessonResult(next[index], accuracy)) return false;
+  DynamicJsonDocument doc(4096);
+  for (size_t i = 0; i < LessonCount; ++i) {
+    auto item = doc.createNestedObject(Lessons[i].id);
+    item["runs"] = next[i].runs;
+    item["best"] = next[i].best;
+  }
+  if (doc.overflowed()) return false;
+  String blob;
+  serializeJson(doc, blob);
+  if (!prefs.putString("lessons", blob)) return false;
+  lessonResults = next;
+  return true;
+}
+bool ConfigManager::resetLessonProgress() {
+  if (prefs.isKey("lessons") && !prefs.remove("lessons")) return false;
+  lessonResults = {};
   return true;
 }
 bool ConfigManager::saveLed(const LedConfig& next) {

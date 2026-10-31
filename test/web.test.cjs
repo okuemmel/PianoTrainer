@@ -14,6 +14,53 @@ async function setup(
   });
   dom.window.TextDecoder = TextDecoder;
   const calls = [];
+  let course = [
+    {
+      id: "first-note",
+      title: "1. Erster Ton",
+      chapter: "1 · Erste Töne",
+      goal: "Vier Anschläge",
+      instruction: "Taste loslassen und neu spielen.",
+      preset: "single",
+      mode: "guided",
+      bpm: 55,
+      root: 60,
+      runs: 0,
+      best: 0,
+      stars: 0,
+      passed: false,
+    },
+    {
+      id: "neighbors",
+      title: "2. Zwei Töne",
+      chapter: "1 · Erste Töne",
+      goal: "Tasten wechseln",
+      instruction: "Vorauslesen.",
+      preset: "neighbors",
+      mode: "guided",
+      bpm: 55,
+      root: 60,
+      runs: 0,
+      best: 0,
+      stars: 0,
+      passed: false,
+    },
+    {
+      id: "left-hand",
+      title: "3. Linke Hand",
+      chapter: "2 · Hände",
+      goal: "Links spielen",
+      instruction: "Eine Oktave tiefer.",
+      preset: "five",
+      mode: "guided",
+      bpm: 60,
+      root: 48,
+      runs: 0,
+      best: 0,
+      stars: 0,
+      passed: false,
+    },
+  ];
   let leds = { count: 60, pin: 4, brightness: 25, frame: "000000".repeat(60) };
   let training = {
     mode: "free",
@@ -91,6 +138,23 @@ async function setup(
         pins: [0, 1, 3, 4, 5, 6, 7, 10, 20, 21],
       };
     if (url === "/api/training") {
+      if (body?.command === "lesson") {
+        const item = course.find((l) => l.id === body.lesson);
+        training = {
+          ...training,
+          mode: item.mode,
+          state: "playing",
+          exercise: item.title,
+          bpm: item.bpm,
+          expected: [item.root],
+          total: 4,
+          index: 0,
+          lesson: item.id,
+          lessonRun: (training.lessonRun || 0) + 1,
+          lessonRecorded: false,
+          lessonSaved: false,
+        };
+      }
       if (body?.command === "start")
         training = {
           ...training,
@@ -109,6 +173,18 @@ async function setup(
       if (body?.command === "free")
         training = { ...training, state: "idle", mode: "free", expected: [] };
       data = { training, leds, presets: [] };
+    }
+    if (url === "/api/lessons") data = { lessons: course, passAccuracy: 80 };
+    if (url === "/api/lessons/reset") {
+      course = course.map((item) => ({
+        ...item,
+        runs: 0,
+        best: 0,
+        stars: 0,
+        passed: false,
+      }));
+      training = { ...training, state: "idle", mode: "free", lesson: "" };
+      data = { ok: true, training, leds };
     }
     if (url === "/api/midi") data = { ok: true, training, leds };
     if (url === "/api/led") data = { ok: true, training, leds };
@@ -163,6 +239,24 @@ async function setup(
     w: dom.window,
     d: dom.window.document,
     calls,
+    setLessonResult: (id, result) => {
+      course = course.map((item) =>
+        item.id !== id
+          ? item
+          : {
+              ...item,
+              ...result,
+              stars: !result.runs
+                ? 0
+                : result.best >= 95
+                  ? 3
+                  : result.best >= 80
+                    ? 2
+                    : 1,
+              passed: result.runs > 0 && result.best >= 80,
+            },
+      );
+    },
     deliverTraining: (next) => {
       training = { ...training, ...next };
       dom.window.receiveTrainingSnapshot(training);
@@ -1128,4 +1222,149 @@ test("playback notation follows its own timeline, survives training status updat
     notes: [],
   });
   assert.ok(s.d.querySelector('.score-note[data-note="48"]'));
+});
+
+test("lessons start from the curriculum and refresh saved progress once after completion", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.w.location.hash = "training";
+  s.w.dispatchEvent(new s.w.HashChangeEvent("hashchange"));
+  await new Promise((resolve) => s.w.setTimeout(resolve, 0));
+  await tick();
+  await tick();
+  assert.equal(s.d.querySelector("#lessonSelect").value, "first-note");
+  assert.equal(s.d.querySelector("#lessonSelect").options.length, 3);
+  assert.equal(s.d.querySelector("#lessonProgress").value, 0);
+  s.d.querySelector("#trainingBpm").value = 180;
+  s.d.querySelector("#startLesson").click();
+  await tick();
+  await tick();
+  const sent = s.calls.find(
+    (c) => c.url === "/api/training" && c.body?.command === "lesson",
+  );
+  assert.deepEqual(sent.body, { command: "lesson", lesson: "first-note" });
+  assert.equal(s.d.querySelector("#trainingBpm").value, "55");
+  assert.equal(s.d.querySelector("#showScore").checked, true);
+  s.deliverTraining({ state: "paused" });
+  await tick();
+  assert.equal(s.d.querySelector("#lessonProgress").value, 0);
+  s.setLessonResult("first-note", { runs: 1, best: 100 });
+  const completed = {
+    state: "completed",
+    lesson: "first-note",
+    lessonRun: 1,
+    lessonRecorded: true,
+    lessonSaved: true,
+    accuracy: 100,
+  };
+  s.deliverTraining(completed);
+  await tick();
+  await tick();
+  assert.equal(s.d.querySelector("#lessonProgress").value, 1);
+  assert.match(
+    s.d.querySelector("#lessonProgressText").textContent,
+    /1\/3 bestanden.*3\/9 Sterne/,
+  );
+  assert.match(s.d.querySelector("#lessonStatus").textContent, /Bestanden/);
+  const requests = s.calls.filter((c) => c.url === "/api/lessons").length;
+  s.deliverTraining(completed);
+  s.deliverTraining(completed);
+  await tick();
+  await tick();
+  assert.equal(
+    s.calls.filter((c) => c.url === "/api/lessons").length,
+    requests,
+  );
+  s.d.querySelector("#nextLesson").click();
+  assert.equal(s.d.querySelector("#lessonSelect").value, "neighbors");
+  s.w.confirm = () => true;
+  s.d.querySelector("#resetLessonProgress").click();
+  await tick();
+  await tick();
+  assert.equal(s.d.querySelector("#lessonProgress").value, 0);
+  assert.deepEqual(s.calls.find((c) => c.url === "/api/lessons/reset").body, {
+    confirm: "LERNFORTSCHRITT",
+  });
+});
+
+test("failed lesson persistence is visible and does not claim a saved pass", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.w.location.hash = "training";
+  s.w.dispatchEvent(new s.w.HashChangeEvent("hashchange"));
+  await new Promise((resolve) => s.w.setTimeout(resolve, 0));
+  await tick();
+  await tick();
+  s.deliverTraining({
+    state: "completed",
+    lesson: "first-note",
+    lessonRun: 5,
+    lessonRecorded: true,
+    lessonSaved: false,
+    accuracy: 100,
+  });
+  await tick();
+  await tick();
+  assert.equal(s.d.querySelector("#lessonProgress").value, 0);
+  assert.match(
+    s.d.querySelector("#lessonStatus").textContent,
+    /nicht dauerhaft gespeichert/,
+  );
+});
+
+test("61, 76 and 88 key profiles save the full MIDI range and retain one centered virtual LED per key", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const form = s.d.querySelector("#ledForm");
+  for (const [keys, base] of [
+    [61, 36],
+    [76, 28],
+    [88, 21],
+  ]) {
+    form.elements.count.value = String(keys);
+    s.d.querySelector("#keyboardLayout").value = String(keys);
+    s.d.querySelector("#keyboardLayout").dispatchEvent(new s.w.Event("change"));
+    assert.equal(form.elements.keys.value, String(keys));
+    assert.equal(form.elements.baseNote.value, String(base));
+    form.dispatchEvent(
+      new s.w.Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await tick();
+    await tick();
+    const sent = s.calls
+      .filter((c) => c.url === "/api/config" && c.body)
+      .at(-1).body;
+    assert.equal(sent.keys, keys);
+    assert.equal(sent.baseNote, base);
+    assert.equal(sent.mapping[base], 0);
+    assert.equal(sent.mapping[base + keys - 1], keys - 1);
+    assert.equal(sent.mapping[base - 1], -1);
+    assert.equal(s.d.querySelectorAll(".key").length, keys);
+    const cells = [...s.d.querySelectorAll(".led-cell")];
+    assert.equal(cells.length, keys);
+    assert.equal(cells[0].dataset.noteValue, String(base));
+    assert.equal(cells.at(-1).dataset.noteValue, String(base + keys - 1));
+    for (const key of s.d.querySelectorAll(".key")) {
+      const cell = cells.find(
+        (c) => c.dataset.noteValue === key.dataset.noteValue,
+      );
+      assert.equal(
+        parseFloat(cell.style.left),
+        parseFloat(key.style.left) +
+          (key.classList.contains("black") ? 12 : 20),
+      );
+    }
+    assert.equal(s.d.querySelector("#keyboardLayout").value, String(keys));
+    assert.equal(s.d.querySelector("#trainingRoot").value, "60");
+  }
+  // Instrument size does not pretend a physically shorter strip has more LEDs.
+  form.elements.count.value = "60";
+  s.d.querySelector("#keyboardLayout").value = "88";
+  s.d.querySelector("#keyboardLayout").dispatchEvent(new s.w.Event("change"));
+  assert.equal(form.elements.count.value, "60");
+  assert.equal(s.d.querySelector('[data-note="108"]').value, "-1");
+  assert.match(
+    s.d.querySelector("#keyboardLayoutHint").textContent,
+    /28 Tasten ohne LED/,
+  );
 });

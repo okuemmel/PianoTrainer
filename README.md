@@ -6,6 +6,23 @@ Der Trainer soll dabei helfen, **Klavier oder Keyboard zu lernen**. Dazu wird ei
 
 Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mit 4 MB Flash** und einen WS2812B-Streifen. Die Firmware bietet WLAN-Einrichtung, lokale deutsche Weboberfläche, persistente LED-Konfiguration, Animationen und eine virtuelle, mehrstimmige MIDI-Tastatur. Für Phase 1 wird kein MIDI-Kabel benötigt.
 
+## Lektionen und Tastaturgrößen · Firmware 1.9.0
+
+Unter **Training → Lektionen** führen 20 Übungen in vier Kapiteln von ersten Tönen und Fingerwechseln über linke Hand, Intervalle und Akkorde bis zu Zusammenspiel, Rhythmus, Pausen und zwei Melodien. Jede Lektion hat feste Vorgaben, ein Lernziel und einen Spielhinweis. LEDs und die optionale Notenvorschau begleiten die Übung. Die Eingabe erfolgt derzeit über die virtuelle MIDI-Tastatur.
+
+Ab 80 % ist eine Lektion bestanden. Ein Stern bedeutet abgeschlossen, zwei Sterne bestanden, drei Sterne mindestens 95 %. Nur vollständig beendete Lektionen zählen; gespeichert werden die Anzahl der Durchläufe und der beste Wert. Eine schwächere Wiederholung senkt den Bestwert nicht. Der Fortschritt liegt im NVS des Trainers und bleibt nach Neustarts sowie beim Wechsel zwischen Handy und Tablet erhalten. Die Empfehlung führt zur ersten noch nicht bestandenen Lektion; alle bleiben frei wählbar. Freies Üben mit 19 Vorlagen und MIDI-Anhören zählen separat. Unter **System** lässt sich nur der Lernfortschritt löschen; der Werksreset löscht ihn ebenfalls.
+
+Unter **LEDs · Aufbau & Test → Streifen & Tastatur → Tastaturgröße** das Instrument auswählen und anschließend die Konfiguration speichern:
+
+| Tasten | Bereich | MIDI-Noten |
+|---|---|---|
+| 49 | C3–C7 | 48–96 |
+| 61 | C2–C7 | 36–96 |
+| 76 | E1–G7 | 28–103 |
+| 88 | A0–C8 | 21–108 |
+
+Die Auswahl setzt den Tastaturbereich und erzeugt eine lineare LED-Zuordnung ab dem eingestellten LED-Startoffset. Virtuelle Tasten, jeweils eine virtuelle LED pro Taste und der optionale MIDI-Importfilter folgen diesem Bereich. **Die physische LED-Anzahl separat passend zum Streifen einstellen.** Bei zu wenigen LEDs bleiben weitere Tasten unzugeordnet; die Oberfläche nennt deren Anzahl. Eine individuelle Zuordnung und eigene Tastaturbereiche sind weiterhin möglich. Alle 20 Lektionen passen auf die genannten Größen und verwenden das mittlere C als Ausgangspunkt. Bei sehr kleinen individuellen Bereichen können einzelne Lektionen wegen fehlender Tasten abgelehnt werden.
+
 ## Aufbau am Keyboard
 
 ![Illustration: LED-Leiste auf dem Keyboard mit Trainer und Smartphone](docs/images/keyboard-setup.png)

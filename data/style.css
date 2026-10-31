@@ -1059,3 +1059,16 @@ footer {
     font-size: 24px;
   }
 }
+
+.lesson-card #lessonInstruction {
+  font-size: 13px;
+  margin: 6px 0;
+}
+.lesson-card #lessonStatus {
+  font-size: 12px;
+  margin: 6px 0;
+}
+.lesson-card progress {
+  display: block;
+  margin: 6px 0 10px;
+}

@@ -51,3 +51,5 @@ Die Anbindung wurde auf dem vorhandenen C3 geprüft; ein S3 ist für diese Impor
 
 - [x] GitHub-Link, Urheberangabe und aktuelle Firmware-Version in Fußzeile/Systeminformationen (1.8.0).
 - [x] Mitlaufende, ausblendbare Notenvorschau beim Anhören vollständiger MIDI-Dateien.
+- [x] 20 aufeinander aufbauende Lektionen mit Lernzielen, Empfehlungen, Sternen und dauerhaftem Lernfortschritt auf dem Trainer (1.9.0).
+- [x] Tastaturprofile für 61, 76 und 88 Tasten neben 49 Tasten und individuellen Bereichen; passende virtuelle Tastatur, LED-Zuordnung und Lektionen.

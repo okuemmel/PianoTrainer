@@ -3,6 +3,8 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 
+#include "LessonCatalog.h"
+#include "LessonProgress.h"
 #include "LibrarySettings.h"
 #include "NetworkSettings.h"
 #include "TrainerLogic.h"
@@ -12,6 +14,9 @@ class ConfigManager {
   String cloudFolder, cloudUser, cloudPassword, cloudCa;
   String ssid, wifiPassword, accessPassword;
   String hostname = "midi-trainer";
+  std::array<LessonResult, LessonCount> lessonResults{};
+  bool saveLessonResult(size_t index, int accuracy);
+  bool resetLessonProgress();
   bool begin();
   bool saveLed(const LedConfig& next);
   bool saveWifi(const String& name, const String& password);

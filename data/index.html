@@ -139,7 +139,49 @@
           <p class="eyebrow">SPIELEN · LERNEN · WIEDERHOLEN</p>
           <h1>Training</h1>
 
+          <article class="lesson-card">
+            <details open>
+              <summary>
+                Lektionen ·
+                <span id="lessonProgressText">Fortschritt laden …</span>
+              </summary>
+              <progress
+                id="lessonProgress"
+                max="20"
+                value="0"
+                aria-label="Bestandene Lektionen"
+              ></progress>
+              <label
+                >Lektion wählen<select id="lessonSelect" disabled>
+                  <option>Lade Lektionen …</option>
+                </select></label
+              >
+              <p id="lessonGoal" class="hint"></p>
+              <p id="lessonInstruction"></p>
+              <div class="actions">
+                <button id="startLesson" type="button" disabled>
+                  Lektion starten
+                </button>
+                <button
+                  id="nextLesson"
+                  type="button"
+                  class="secondary"
+                  disabled
+                >
+                  Empfehlung wählen
+                </button>
+              </div>
+              <p id="lessonStatus" role="status"></p>
+              <p class="hint">
+                Ab 80 % bestanden · ★ abgeschlossen, ★★ bestanden, ★★★ ab 95 % ·
+                Alle Lektionen frei wählbar. Dein Fortschritt bleibt auf diesem
+                Trainer für Handy und Tablet gespeichert.
+              </p>
+            </details>
+          </article>
+
           <article>
+            <p class="eyebrow">FREIES ÜBEN &amp; MIDI</p>
             <form id="trainingForm">
               <div class="fields">
                 <label
@@ -441,6 +483,24 @@
               <form id="ledForm">
                 <article>
                   <h2>Streifen & Tastatur</h2>
+                  <label
+                    >Instrument / Tastaturgröße<select id="keyboardLayout">
+                      <option value="custom">Individueller Bereich</option>
+                      <option value="49" data-base="48">
+                        49 Tasten · C3–C7
+                      </option>
+                      <option value="61" data-base="36">
+                        61 Tasten · C2–C7
+                      </option>
+                      <option value="76" data-base="28">
+                        76 Tasten · E1–G7
+                      </option>
+                      <option value="88" data-base="21">
+                        88 Tasten · A0–C8
+                      </option>
+                    </select></label
+                  >
+                  <p id="keyboardLayoutHint" class="hint"></p>
                   <div class="fields">
                     <label
                       >LED-Anzahl<input
@@ -834,10 +894,21 @@
             </form>
           </article>
           <article>
+            <h2>Lernfortschritt</h2>
+            <p>
+              Setzt nur die Lektionsergebnisse für alle Nutzer dieses Trainers
+              zurück.
+            </p>
+            <button id="resetLessonProgress" type="button" class="secondary">
+              Lernfortschritt zurücksetzen
+            </button>
+          </article>
+          <article>
             <h2>Werkseinstellungen</h2>
             <p>
-              Löscht WLAN, LED-Einstellungen und Gerätepasswort. Nach dem
-              Neustart gilt wieder die Webanmeldung <b>admin / admin</b>.
+              Löscht WLAN, LED-Einstellungen, Gerätepasswort und
+              Lernfortschritt. Nach dem Neustart gilt wieder die Webanmeldung
+              <b>admin / admin</b>.
             </p>
             <button id="reset" class="danger">
               Auf Werkseinstellungen zurücksetzen

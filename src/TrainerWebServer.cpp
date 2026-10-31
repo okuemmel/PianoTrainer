@@ -43,7 +43,7 @@ bool TrainerWebServer::body(JsonDocument& d, size_t maxBytes) {
 }
 void TrainerWebServer::status() {
   DynamicJsonDocument d(8192);
-  training.status(d.createNestedObject("training"));
+  trainingSnapshot(d.createNestedObject("training"));
   ledStatus(d.createNestedObject("leds"));
   d["board"] = BoardProfile::name;
   d["wifiState"] = wifi.state;
@@ -86,7 +86,7 @@ void TrainerWebServer::ledStatus(JsonObject object) const {
 void TrainerWebServer::ledReply() {
   DynamicJsonDocument reply(8192);
   reply["ok"] = true;
-  training.status(reply.createNestedObject("training"));
+  trainingSnapshot(reply.createNestedObject("training"));
   ledStatus(reply.createNestedObject("leds"));
   json(200, reply);
 }
@@ -113,9 +113,10 @@ void TrainerWebServer::file(const char* path, const char* mime) {
 void TrainerWebServer::begin(bool filesystemReady) {
   fsReady = filesystemReady;
   libraryRoutes();
-  for (const char* path : {"/index.html", "/style.css", "/midi-file.js", "/library.js",
-                           "/piano-audio.js", "/piano-samples.bin", "/piano-credits.txt",
-                           "/midi-player.js", "/app.js"}) {
+  lessonRoutes();
+  for (const char* path :
+       {"/index.html", "/style.css", "/midi-file.js", "/library.js", "/piano-audio.js",
+        "/piano-samples.bin", "/piano-credits.txt", "/midi-player.js", "/app.js"}) {
     auto f = fsReady ? LittleFS.open(path, "r") : File();
     if (f) {
       Serial.printf("[HTTP] Webdatei %s bereit (%u Bytes).\n", path,
@@ -419,13 +420,15 @@ void TrainerWebServer::begin(bool filesystemReady) {
       "[HTTP] Webserver auf Port 80 gestartet. Adresse: http://192.168.4.1/ im Setup-WLAN.");
 }
 void TrainerWebServer::loop() {
+  recordCompletedLesson();
   server.handleClient();
+  recordCompletedLesson();
   if (rebootAt && (int32_t)(millis() - rebootAt) >= 0) ESP.restart();
 }
 
 void TrainerWebServer::trainingStatus() {
   DynamicJsonDocument d(8192);
-  training.status(d.createNestedObject("training"));
+  trainingSnapshot(d.createNestedObject("training"));
   ledStatus(d.createNestedObject("leds"));
   auto catalog = d.createNestedArray("presets");
   for (const auto& preset : TrainingPresets) {
@@ -460,7 +463,21 @@ void TrainerWebServer::trainingCommand() {
     }
     training.resume();
     midi.keepAlive();
-  } else if (command == "start") {
+  } else if (command == "start" || command == "lesson") {
+    int lesson = -1;
+    if (command == "lesson") {
+      if (!d["lesson"].is<const char*>() || (lesson = lessonIndex(d["lesson"])) < 0) {
+        error(400, "Unbekannte Lektion.");
+        return;
+      }
+      const auto& item = Lessons[lesson];
+      d["mode"] = item.mode;
+      d["preset"] = item.preset;
+      d["bpm"] = item.bpm;
+      d["tolerance"] = 250;
+      d["timed"] = strcmp(item.mode, "song") == 0;
+      d["root"] = lessonRoot(config.led.baseNote, config.led.keys) + item.rootOffset;
+    }
     const String mode = d["mode"] | "";
     LearningMode selected;
     if (mode == "guided")
@@ -529,6 +546,12 @@ void TrainerWebServer::trainingCommand() {
       return;
     }
     training.exercise = title;
+    activeLesson = lesson;
+    lessonRecorded = lessonSaved = false;
+    if (lesson >= 0) {
+      if (++lessonRun == 0) ++lessonRun;
+      training.exercise = Lessons[lesson].title;
+    }
     midi.keepAlive();
     Serial.printf("[Training] %s gestartet, %d Schritte, %d BPM.\n", mode.c_str(), sequence.count,
                   training.engine.bpm);

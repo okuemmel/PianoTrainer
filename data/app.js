@@ -15,6 +15,10 @@ const libraryClient = new window.MidiLibrary.Client(api);
 const midiPlayer = new window.MidiPlayer.Player(renderPlayback);
 let playbackName = "";
 let playbackView = null;
+let lessons = [],
+  lessonLoad = null,
+  lessonsLoaded = false,
+  lastLessonCompletion = "";
 let playbackLedActive = false,
   playbackLedKey = "",
   playbackLedSentAt = 0,
@@ -132,6 +136,7 @@ function route() {
     pauseActiveTraining();
   }
   if (hash === "training") loadCloudListOnce();
+  if (hash === "training") loadLessons(true);
   if (hash !== "training" && libraryBusy)
     libraryClient.cancel().catch(() => {});
 }
@@ -261,9 +266,13 @@ function renderConfig() {
     "rgb",
   ])
     form.elements[name].value = String(config[name]);
+  syncKeyboardLayout();
   $("#channel").value = config.channel;
   $("#sendChannel").value = config.channel || 1;
-  $("#trainingRoot").value = config.baseNote + (config.keys >= 27 ? 12 : 0);
+  $("#trainingRoot").value =
+    config.baseNote <= 48 && config.baseNote + config.keys - 1 >= 76
+      ? 60
+      : config.baseNote + (config.keys >= 27 ? 12 : 0);
   $("#ledCount").textContent = config.count + " LEDs";
   $("#ledState").textContent = "GPIO " + config.pin + " · WS2812B";
   $("#ledIndex").max = config.count - 1;
@@ -300,6 +309,50 @@ $("#autoMap").onclick = () => {
   });
   toast("Zuordnung vorbereitet. Zum Übernehmen speichern.");
 };
+function syncKeyboardLayout() {
+  const form = $("#ledForm"),
+    field = $("#keyboardLayout");
+  const keys = Number(form.elements.keys.value),
+    base = Number(form.elements.baseNote.value);
+  const profile = [...field.options].find(
+    (option) =>
+      Number(option.value) === keys && Number(option.dataset.base) === base,
+  );
+  field.value = profile ? profile.value : "custom";
+  const missing = Math.max(
+    0,
+    keys -
+      (Number(form.elements.count.value) - Number(form.elements.first.value)),
+  );
+  $("#keyboardLayoutHint").textContent =
+    (Number.isInteger(base) && keys > 0 && base >= 0 && base + keys <= 128
+      ? noteName(base) +
+        "–" +
+        noteName(base + keys - 1) +
+        " · MIDI " +
+        base +
+        "–" +
+        (base + keys - 1) +
+        ". "
+      : "") +
+    "Profilwahl bereitet Tastenbereich und fortlaufende LED-Zuordnung vor. Anschließend speichern." +
+    (missing
+      ? " Bei fortlaufender Zuordnung bleiben " +
+        missing +
+        " Tasten ohne LED; LED-Anzahl passend zum tatsächlichen Streifen einstellen."
+      : "");
+}
+$("#keyboardLayout").onchange = () => {
+  const option = $("#keyboardLayout").selectedOptions[0];
+  if (!option?.dataset.base) return;
+  const form = $("#ledForm");
+  form.elements.keys.value = option.value;
+  form.elements.baseNote.value = option.dataset.base;
+  $("#autoMap").onclick();
+  syncKeyboardLayout();
+};
+for (const name of ["keys", "baseNote", "count", "first"])
+  $("#ledForm").elements[name].addEventListener("input", syncKeyboardLayout);
 $("#ledForm").onsubmit = (e) => {
   e.preventDefault();
   run(async () => {
@@ -322,6 +375,7 @@ $("#ledForm").onsubmit = (e) => {
     await api("config", next);
     config = next;
     renderConfig();
+    lessonsLoaded = false;
     toast("LED-Konfiguration gespeichert.");
   });
 };
@@ -505,8 +559,9 @@ $("#passwordForm").onsubmit = (e) => {
 };
 $("#reset").onclick = () => {
   if (
-    prompt("Zum Löschen aller Einstellungen WERKSRESET eingeben:") ===
-    "WERKSRESET"
+    prompt(
+      "Zum Löschen aller Einstellungen und Lernfortschritte WERKSRESET eingeben:",
+    ) === "WERKSRESET"
   )
     run(async () => {
       await api("reset", { confirm: "WERKSRESET" });
@@ -599,6 +654,7 @@ run(async () => {
   config = await api("config");
   renderConfig();
   const lesson = await api("training");
+  renderPresetCatalog(lesson.presets);
   if (lesson.training) renderTraining(lesson.training);
   await loadLibrarySettings();
   route();
@@ -697,6 +753,32 @@ function renderTraining(t) {
   });
   renderScore();
   paintTrainingTime();
+  if (t.lesson && ["playing", "countin"].includes(t.state))
+    lastLessonCompletion = "";
+  if (t.lesson && t.state === "completed") {
+    const key = t.lesson + ":" + t.lessonRun;
+    if (key !== lastLessonCompletion) {
+      lastLessonCompletion = key;
+      loadLessons(true).then((loaded) => {
+        if (!loaded) return;
+        if (t.lessonRecorded && !t.lessonSaved) {
+          $("#lessonStatus").textContent =
+            "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.";
+          return;
+        }
+        $("#lessonStatus").textContent =
+          "Lektion beendet: " +
+          t.accuracy +
+          " % · " +
+          (t.accuracy >= 80
+            ? "Bestanden! Empfehlung für die nächste Lektion wählen."
+            : "Noch einmal üben – Ziel sind 80 %.");
+      });
+    }
+  }
+  if (t.lesson && t.lessonRecorded && !t.lessonSaved)
+    $("#lessonStatus").textContent =
+      "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.";
 }
 function paintTrainingTime() {
   const t = trainingView;
@@ -1623,3 +1705,164 @@ function playbackLeds(view) {
     drainPlaybackLeds();
   }
 }
+
+function renderPresetCatalog(presets) {
+  if (!Array.isArray(presets) || !presets.length) return;
+  const field = $("#trainingPreset"),
+    selected = field.value;
+  const custom = field.querySelector('option[value="custom"]');
+  const options = presets
+    .filter(
+      (p) =>
+        typeof p.id === "string" &&
+        p.id !== "custom" &&
+        typeof p.title === "string",
+    )
+    .map((p) => {
+      const option = document.createElement("option");
+      option.value = p.id;
+      option.textContent = p.title;
+      return option;
+    });
+  if (!options.length) return;
+  field.replaceChildren(...options, custom);
+  field.value = [...field.options].some((o) => o.value === selected)
+    ? selected
+    : options[0].value;
+}
+function renderLessonInfo() {
+  const lesson = lessons.find((item) => item.id === $("#lessonSelect").value);
+  if (!lesson) return;
+  $("#lessonGoal").textContent =
+    "Lernziel: " + lesson.goal + " · " + lesson.bpm + " BPM";
+  $("#lessonInstruction").textContent = lesson.instruction;
+  $("#lessonStatus").textContent = lesson.runs
+    ? "★".repeat(lesson.stars) +
+      " · Bestwert " +
+      lesson.best +
+      " % · " +
+      lesson.runs +
+      " abgeschlossene Durchläufe" +
+      (lesson.passed ? " · Bestanden" : " · Noch üben")
+    : "Noch nicht abgeschlossen. Schritt für Schritt anfangen.";
+  if (
+    trainingView?.lesson === lesson.id &&
+    trainingView.lessonRecorded &&
+    !trainingView.lessonSaved
+  )
+    $("#lessonStatus").textContent =
+      "Ergebnis konnte nicht dauerhaft gespeichert werden. Bitte die Lektion später wiederholen.";
+}
+function renderLessons() {
+  const field = $("#lessonSelect");
+  const selected = field.value;
+  const recommended = lessons.find((item) => !item.passed);
+  field.replaceChildren();
+  const groups = new Map();
+  for (const lesson of lessons) {
+    if (!groups.has(lesson.chapter)) {
+      const group = document.createElement("optgroup");
+      group.label = lesson.chapter;
+      groups.set(lesson.chapter, group);
+      field.append(group);
+    }
+    const option = document.createElement("option");
+    option.value = lesson.id;
+    option.textContent =
+      lesson.title +
+      (lesson.runs
+        ? " · " + "★".repeat(lesson.stars) + " " + lesson.best + " %"
+        : "");
+    groups.get(lesson.chapter).append(option);
+  }
+  field.value = lessons.some((item) => item.id === selected)
+    ? selected
+    : lessons.some((item) => item.id === trainingView?.lesson)
+      ? trainingView.lesson
+      : (recommended || lessons[0]).id;
+  const passed = lessons.filter((item) => item.passed).length;
+  const stars = lessons.reduce((sum, item) => sum + item.stars, 0);
+  $("#lessonProgress").max = lessons.length;
+  $("#lessonProgress").value = passed;
+  $("#lessonProgressText").textContent =
+    passed +
+    "/" +
+    lessons.length +
+    " bestanden · " +
+    stars +
+    "/" +
+    lessons.length * 3 +
+    " Sterne";
+  field.disabled = false;
+  $("#startLesson").disabled = false;
+  $("#nextLesson").disabled = !recommended;
+  $("#nextLesson").textContent = recommended
+    ? "Empfehlung wählen"
+    : "Alle Lektionen bestanden";
+  renderLessonInfo();
+}
+function loadLessons(force = false) {
+  if (lessonLoad)
+    return force ? lessonLoad.then(() => loadLessons(true)) : lessonLoad;
+  if (lessonsLoaded && !force) return Promise.resolve(true);
+  lessonLoad = api("lessons")
+    .then((reply) => {
+      if (
+        !Array.isArray(reply.lessons) ||
+        !reply.lessons.length ||
+        reply.lessons.length > 64
+      )
+        throw Error("Keine gültigen Lektionen vom Trainer erhalten.");
+      lessons = reply.lessons;
+      lessonsLoaded = true;
+      renderLessons();
+      return true;
+    })
+    .catch((error) => {
+      $("#lessonStatus").textContent = error.message;
+      return false;
+    })
+    .finally(() => {
+      lessonLoad = null;
+    });
+  return lessonLoad;
+}
+$("#lessonSelect").onchange = renderLessonInfo;
+$("#nextLesson").onclick = () => {
+  const next = lessons.find((item) => !item.passed);
+  if (next) {
+    $("#lessonSelect").value = next.id;
+    renderLessonInfo();
+  }
+};
+$("#startLesson").onclick = () =>
+  run(async () => {
+    const lesson = lessons.find((item) => item.id === $("#lessonSelect").value);
+    if (!lesson) throw Error("Bitte zuerst eine Lektion wählen.");
+    $("#showScore").checked = true;
+    await trainingCommand({ command: "lesson", lesson: lesson.id });
+    $("#trainingMode").value = lesson.mode;
+    $("#trainingPreset").value = lesson.preset;
+    $("#trainingBpm").value = lesson.bpm;
+    if (Number.isInteger(lesson.root)) $("#trainingRoot").value = lesson.root;
+    $("#songTimed").value = lesson.mode === "song" ? "true" : "false";
+    $("#trainingMode").onchange();
+    $("#lessonStatus").textContent =
+      lesson.title + " läuft. " + lesson.instruction;
+  });
+$("#resetLessonProgress").onclick = () => {
+  if (
+    !confirm(
+      "Lernfortschritt für alle Nutzer dieses Trainers zurücksetzen? WLAN und LED-Einstellungen bleiben erhalten.",
+    )
+  )
+    return;
+  run(async () => {
+    const reply = await api("lessons/reset", { confirm: "LERNFORTSCHRITT" });
+    lastLessonCompletion = "";
+    if (reply.training) renderTraining(reply.training);
+    await loadLessons(true);
+    $("#lessonStatus").textContent = "Lernfortschritt zurückgesetzt.";
+    toast("Lernfortschritt zurückgesetzt.");
+  });
+};

@@ -8,8 +8,8 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 |---|---|
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
-| `pio test -e native` | 18 von 18 Tests bestanden |
-| `npm test` | 49 von 49 Browser-/MIDI-Tests bestanden |
+| `pio test -e native` | 20 von 20 Tests bestanden |
+| `npm test` | 52 von 52 Browser-/MIDI-Tests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -17,8 +17,8 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 
 Speicherbelegung laut finalem Linkergebnis:
 
-- Statischer RAM: **50.700 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.147.826 / 1.572.864 Bytes (73,0 %)**.
+- Statischer RAM: **50.796 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
+- Anwendung im Flash: **1.158.768 / 1.572.864 Bytes (73,7 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -32,6 +32,16 @@ C++: Standardkonfiguration, erlaubte/gesperrte GPIOs, Bereichsgrenzen, unzuläss
 DOM: 49 virtuelle Tasten, 128 Zuordnungen, GPIO-Auswahl, geordnete mehrstimmige Note-On/Off-Ereignisse, Freigabe bei Fokusverlust und Seitenwechsel, typisierte Konfigurationsdaten samt Schreibzugriffsheader, WLAN-Auswahl und Passwortlöschung im Formular. Ein SSID-Name mit HTML-Zeichen wird als Text dargestellt.
 
 Die DOM-Tests verwenden jsdom und simulierte API-Antworten. Sie bestätigen weder die reale Firmware-HTTP-Authentifizierung noch die visuelle Darstellung auf iPad/Safari. Ein sichtbarer Browserlauf war hier mangels Browser-Ausführungswerkzeug nicht möglich.
+
+## Lektionen und Tastaturprofile · Firmware 1.9.0
+
+20 native und 52 Node-Tests bestanden, ebenso Formatprüfung, JavaScript-Syntax, C3-Build und LittleFS-Build. Neue native Prüfungen bauen sämtliche 20 Lektionen für 49, 61, 76 und 88 Tasten sowie einen individuellen verschobenen Bereich und prüfen Notengrenzen, gültige Trainingsparameter und LED-Zuordnungen. Standardprofile verwenden das mittlere C. Ergebnisprüfungen decken die Schwellen 80/95 %, ungültige Werte, unveränderte Bestwerte und den begrenzten Durchlaufzähler ab.
+
+Neue DOM-Prüfungen bestätigen Kursauswahl, feste Lektionsparameter, Empfehlungen, Sterne, einmalige Fortschrittsaktualisierung nach Abschluss, Zurücksetzen und sichtbare Speicherfehler. Für 61/76/88 Tasten werden gespeicherte MIDI-Grenzen, vollständige Zuordnungen, Tastenanzahl und die Zentrierung einer virtuellen LED über jeder weißen/schwarzen Taste geprüft. Ein 88-Tasten-Profil mit nur 60 physischen LEDs lässt die übrigen 28 Tasten ausdrücklich unzugeordnet.
+
+Firmware 1.9.0 und LittleFS wurden per USB auf den angeschlossenen C3 übertragen und beide Flash-Hashes verifiziert. Über die echte Geräte-API wurden 20 Lektionen und 19 freie Vorlagen abgerufen. Der Start von `first-note` verwendete trotz abweichender mitgesendeter Parameter die kanonischen Vorgaben: geführt, 55 BPM, C4. Vier Note-On/Off-Paare führten zu 100 %, drei Sternen und genau einem gespeicherten Durchlauf. Weitere Statusabrufe erhöhten den Zähler nicht. Nach einem Neustart durch erneutes Speichern desselben Hostnamens blieb der Fortschritt erhalten. Anschließend wurde ausschließlich der künstlich erzeugte Testfortschritt entfernt und die leere Kursstatistik bestätigt. WLAN-Zugangsdaten und die LED-Konfiguration wurden dabei nicht geändert.
+
+Beim LAN-Test traten einzelne Verbindungs-/Übertragungszeitüberschreitungen auf; über `midi-trainer.local` gelang der Durchlauf. Die Testantwort zeigte schwachen Empfang mit −86 dBm. Dieser API-Test bestätigt weder eine sichtbare Safari-Darstellung noch das Spielen auf einem echten 61-/76-/88-Tasten-Instrument; die MIDI-Eingabe bleibt simuliert.
 
 ## Upload und Starttest am echten Gerät
 

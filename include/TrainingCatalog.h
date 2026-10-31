@@ -7,9 +7,25 @@ struct TrainingPreset {
   const char* title;
 };
 inline constexpr TrainingPreset TrainingPresets[] = {
-    {"five", "Fünf-Finger-Übung"},           {"scale", "Dur-Tonleiter"},
-    {"chords", "Drei Dur-Akkorde"},          {"rhythm", "Viertel und Achtel"},
-    {"joy", "Freude, schöner Götterfunken"}, {"twinkle", "Morgen kommt der Weihnachtsmann"}};
+    {"five", "Fünf-Finger-Übung"},
+    {"scale", "Dur-Tonleiter"},
+    {"chords", "Drei Dur-Akkorde"},
+    {"rhythm", "Viertel und Achtel"},
+    {"joy", "Freude, schöner Götterfunken"},
+    {"twinkle", "Morgen kommt der Weihnachtsmann"},
+    {"single", "Ein Ton, vier Anschläge"},
+    {"neighbors", "Zwei Nachbartöne"},
+    {"three", "Drei Töne auf und ab"},
+    {"fingers", "Fünf Finger im Wechsel"},
+    {"thirds", "Terzen entdecken"},
+    {"fourths", "Quartensprünge"},
+    {"octaves", "Oktaven finden"},
+    {"arpeggio", "Gebrochener Dur-Akkord"},
+    {"minor", "Moll-Akkorde"},
+    {"alternate", "Linke und rechte Hand im Wechsel"},
+    {"together", "Beide Hände gemeinsam"},
+    {"quarters", "Gleichmäßige Viertel"},
+    {"rests", "Rhythmus mit Pausen"}};
 inline bool buildTrainingPreset(const char* id, int root, TrainingSequence& sequence) {
   sequence = TrainingSequence();
   auto add = [&](int offset, int ticks = 480) {
@@ -21,7 +37,60 @@ inline bool buildTrainingPreset(const char* id, int root, TrainingSequence& sequ
     step.ticks = ticks;
     return true;
   };
-  if (!strcmp(id, "five")) {
+  auto chord = [&](std::initializer_list<int> offsets, int ticks = 960) {
+    if (sequence.count >= MaxTrainingSteps || offsets.size() > MaxChordNotes) return false;
+    TrainingStep step;
+    step.ticks = ticks;
+    for (int n : offsets) {
+      if (root + n < 0 || root + n > 127) return false;
+      step.notes[step.count++] = root + n;
+    }
+    sequence.steps[sequence.count++] = step;
+    return true;
+  };
+  if (!strcmp(id, "single")) {
+    for (int i = 0; i < 4; ++i)
+      if (!add(0)) return false;
+  } else if (!strcmp(id, "neighbors")) {
+    for (int n : {0, 2, 0, 2, 2, 0, 2, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "three")) {
+    for (int n : {0, 2, 4, 2, 0, 4, 2, 0, 2, 4, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "fingers")) {
+    for (int n : {0, 4, 2, 5, 4, 7, 5, 2, 0, 7, 4, 2, 5, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "thirds")) {
+    for (int n : {0, 4, 2, 5, 4, 7, 5, 9, 7, 11, 5, 9, 4, 7, 2, 5, 0, 4, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "fourths")) {
+    for (int n : {0, 5, 2, 7, 4, 9, 7, 12, 9, 14, 7, 12, 4, 9, 2, 7, 0, 5, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "octaves")) {
+    for (int n : {0, 12, 0, 12, 2, 14, 2, 14, 4, 16, 4, 16, 0, 12, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "arpeggio")) {
+    for (int n : {0, 4, 7, 12, 7, 4, 0, 4, 7, 12, 7, 4, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "minor")) {
+    for (int offset : {0, 5, 7, 0})
+      if (!chord({offset, offset + 3, offset + 7})) return false;
+  } else if (!strcmp(id, "alternate")) {
+    for (int n : {-12, 0, -10, 2, -8, 4, -7, 5, -5, 7, -7, 5, -8, 4, -10, 2, -12, 0})
+      if (!add(n)) return false;
+  } else if (!strcmp(id, "together")) {
+    for (int n : {0, 2, 4, 5, 7, 5, 4, 2, 0})
+      if (!chord({n - 12, n}, 480)) return false;
+  } else if (!strcmp(id, "quarters")) {
+    for (int i = 0; i < 12; ++i)
+      if (!add(0)) return false;
+  } else if (!strcmp(id, "rests")) {
+    for (int repeat = 0; repeat < 3; ++repeat) {
+      if (!add(0) || !chord({}, 480) || !add(2, 240) || !chord({}, 240) || !add(4) ||
+          !chord({}, 480))
+        return false;
+    }
+  } else if (!strcmp(id, "five")) {
     for (int n : {0, 2, 4, 5, 7, 5, 4, 2, 0})
       if (!add(n)) return false;
   } else if (!strcmp(id, "scale")) {

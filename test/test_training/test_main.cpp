@@ -1,5 +1,7 @@
 #include <unity.h>
 
+#include "LessonCatalog.h"
+#include "LessonProgress.h"
 #include "TrainingCatalog.h"
 void setUp() {}
 void tearDown() {}
@@ -142,6 +144,62 @@ void all_presets_playable() {
     TEST_ASSERT_TRUE(e.start(LearningMode::GuidedLearning, s, 80, 200, false, 0));
   }
 }
+void curriculum_and_default_keyboard() {
+  TEST_ASSERT_EQUAL(20, LessonCount);
+  TEST_ASSERT_EQUAL(-1, lessonIndex("missing"));
+  TEST_ASSERT_EQUAL(-1, lessonIndex(nullptr));
+  for (const auto& profile : {std::array<int, 2>{48, 49}, {49, 49}, {36, 61}, {28, 76}, {21, 88}}) {
+    const int base = profile[0], keys = profile[1];
+    if (keys >= 61) TEST_ASSERT_EQUAL(60, lessonRoot(base, keys));
+    LedConfig config;
+    config.keys = keys;
+    config.baseNote = base;
+    config.count = keys + 2;
+    config.first = 1;
+    config.mapping.fill(-1);
+    for (int n = 0; n < keys; ++n) config.mapping[base + n] = n;
+    TEST_ASSERT_NULL(validate(config));
+    TEST_ASSERT_EQUAL(1, ledForNote(config, base));
+    TEST_ASSERT_EQUAL(keys, ledForNote(config, base + keys - 1));
+    for (size_t i = 0; i < LessonCount; ++i) {
+      const auto& lesson = Lessons[i];
+      TEST_ASSERT_EQUAL(i, lessonIndex(lesson.id));
+      TrainingSequence sequence;
+      TEST_ASSERT_TRUE(
+          buildTrainingPreset(lesson.preset, lessonRoot(base, keys) + lesson.rootOffset, sequence));
+      TrainingEngine engine;
+      TEST_ASSERT_TRUE(engine.start(!strcmp(lesson.mode, "guided")   ? LearningMode::GuidedLearning
+                                    : !strcmp(lesson.mode, "rhythm") ? LearningMode::RhythmTraining
+                                                                     : LearningMode::SongMode,
+                                    sequence, lesson.bpm, 250, !strcmp(lesson.mode, "song"), 0));
+      for (int n = 0; n < sequence.count; ++n)
+        for (int j = 0; j < sequence.steps[n].count; ++j) {
+          TEST_ASSERT_GREATER_OR_EQUAL(base, sequence.steps[n].notes[j]);
+          TEST_ASSERT_LESS_THAN(base + keys, sequence.steps[n].notes[j]);
+        }
+    }
+  }
+}
+void lesson_results_and_thresholds() {
+  LessonResult result;
+  TEST_ASSERT_EQUAL(0, lessonStars(result));
+  TEST_ASSERT_FALSE(recordLessonResult(result, -1));
+  TEST_ASSERT_FALSE(recordLessonResult(result, 101));
+  TEST_ASSERT_EQUAL(0, result.runs);
+  TEST_ASSERT_TRUE(recordLessonResult(result, 79));
+  TEST_ASSERT_EQUAL(1, lessonStars(result));
+  recordLessonResult(result, 80);
+  TEST_ASSERT_EQUAL(2, lessonStars(result));
+  recordLessonResult(result, 95);
+  TEST_ASSERT_EQUAL(3, lessonStars(result));
+  recordLessonResult(result, 20);
+  TEST_ASSERT_EQUAL(95, result.best);
+  TEST_ASSERT_EQUAL(4, result.runs);
+  result.runs = UINT16_MAX;
+  recordLessonResult(result, 100);
+  TEST_ASSERT_EQUAL(UINT16_MAX, result.runs);
+  TEST_ASSERT_EQUAL(100, result.best);
+}
 int main() {
   UNITY_BEGIN();
   RUN_TEST(guided_wrong_and_repeat);
@@ -153,5 +211,7 @@ int main() {
   RUN_TEST(velocity_zero_and_panic);
   RUN_TEST(rests_and_large_time_jump);
   RUN_TEST(all_presets_playable);
+  RUN_TEST(curriculum_and_default_keyboard);
+  RUN_TEST(lesson_results_and_thresholds);
   return UNITY_END();
 }

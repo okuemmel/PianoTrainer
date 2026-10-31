@@ -17,6 +17,12 @@ class TrainerWebServer {
   WebServer server{80};
   RemoteLibrary library;
   void libraryRoutes();
+  void lessonRoutes();
+  void recordCompletedLesson();
+  void trainingSnapshot(JsonObject object);
+  int activeLesson = -1;
+  uint32_t lessonRun = 0;
+  bool lessonRecorded = false, lessonSaved = false;
   ConfigManager& config;
   WiFiManager& wifi;
   LedController& leds;
