@@ -65,7 +65,7 @@ void TrainerWebServer::status() {
   d["flash"] = ESP.getFlashChipSize();
   d["mode"] = leds.mode;
   d["filesystem"] = fsReady;
-  d["firmware"] = "1.7.0";
+  d["firmware"] = "1.7.1";
   d["keys"] = config.led.keys;
   d["baseNote"] = config.led.baseNote;
   d["channel"] = config.led.channel;
@@ -110,6 +110,7 @@ void TrainerWebServer::begin(bool filesystemReady) {
   fsReady = filesystemReady;
   libraryRoutes();
   for (const char* path : {"/index.html", "/style.css", "/midi-file.js", "/library.js",
+                           "/piano-audio.js", "/piano-samples.bin", "/piano-credits.txt",
                            "/midi-player.js", "/app.js"}) {
     auto f = fsReady ? LittleFS.open(path, "r") : File();
     if (f) {
@@ -127,6 +128,12 @@ void TrainerWebServer::begin(bool filesystemReady) {
   server.on("/library.js", HTTP_GET, [this] { file("/library.js", "application/javascript"); });
   server.on("/midi-player.js", HTTP_GET,
             [this] { file("/midi-player.js", "application/javascript"); });
+  server.on("/piano-audio.js", HTTP_GET,
+            [this] { file("/piano-audio.js", "application/javascript"); });
+  server.on("/piano-samples.bin", HTTP_GET,
+            [this] { file("/piano-samples.bin", "application/octet-stream"); });
+  server.on("/piano-credits.txt", HTTP_GET,
+            [this] { file("/piano-credits.txt", "text/plain; charset=utf-8"); });
   server.on("/app.js", HTTP_GET, [this] { file("/app.js", "application/javascript"); });
   server.on("/api/training", HTTP_GET, [this] {
     if (auth()) trainingStatus();

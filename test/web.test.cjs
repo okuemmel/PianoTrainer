@@ -139,10 +139,18 @@ async function setup(
           { ssid: "<img src=x onerror=alert(1)>", rssi: -55, open: false },
         ],
       };
-    return { ok: true, status: 200, json: async () => data };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => data,
+      arrayBuffer: async () =>
+        dom.window.Uint8Array.from(fs.readFileSync("data/piano-samples.bin"))
+          .buffer,
+    };
   };
   dom.window.eval(fs.readFileSync("data/midi-file.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/library.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/piano-audio.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/midi-player.js", "utf8"));
   dom.window.eval(
     script +
@@ -956,4 +964,82 @@ test("file listening survives window blur and backgrounding pauses at the curren
     s.d.querySelector("#midiPlaybackStatus").textContent,
     /Stopp gedrückt/,
   );
+});
+
+test("virtual keys and MIDI listening use local piano samples without downloading the pack twice", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.w.location.hash = "training";
+  await tick();
+  await tick();
+  Object.defineProperty(s.d, "hidden", { configurable: true, value: false });
+  const sources = [];
+  s.w.AudioContext = class {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    resume() {
+      return Promise.resolve();
+    }
+    decodeAudioData() {
+      return Promise.resolve({ duration: 3 });
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+          cancelScheduledValues() {},
+          setTargetAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    createBiquadFilter() {
+      return { frequency: {}, Q: {}, connect() {}, disconnect() {} };
+    }
+    createBufferSource() {
+      const source = {
+        playbackRate: {},
+        stops: [],
+        connect() {},
+        disconnect() {},
+        start() {},
+        stop(t) {
+          this.stops.push(t);
+        },
+      };
+      sources.push(source);
+      return source;
+    }
+  };
+  s.d.querySelector("#soundEnabled").click();
+  await tick();
+  await tick();
+  assert.equal(s.d.querySelector("#soundStatus").textContent, "Klavier bereit");
+  const key = s.d.querySelector('.key[data-note-value="60"]');
+  pointer(s.w, key, "pointerdown", 30);
+  pointer(s.w, key, "pointerup", 30);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].playbackRate.value, 1);
+  assert.equal(sources[0].stops.at(-1), 0.15);
+  s.w.MidiFile.parse = () => ({
+    duration: 5,
+    notes: [{ note: 60, velocity: 100, time: 0, duration: 1 }],
+  });
+  Object.defineProperty(s.d.querySelector("#midiFile"), "files", {
+    value: [{ name: "test.mid", arrayBuffer: async () => new ArrayBuffer(0) }],
+  });
+  s.d.querySelector("#listenMidi").click();
+  await tick();
+  await tick();
+  assert.equal(sources.length, 2);
+  assert.match(
+    s.d.querySelector("#midiPlaybackStatus").textContent,
+    /Spielt.*Klavier-Samples/,
+  );
+  assert.equal(s.calls.filter((c) => c.url === "/piano-samples.bin").length, 1);
+  s.d.querySelector("#stopMidi").click();
 });

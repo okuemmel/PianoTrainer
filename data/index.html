@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/style.css" />
     <script defer src="/midi-file.js"></script>
     <script defer src="/library.js"></script>
+    <script defer src="/piano-audio.js"></script>
     <script defer src="/midi-player.js"></script>
     <script defer src="/app.js"></script>
   </head>
@@ -93,8 +94,9 @@
                 </div>
                 <label class="sound-toggle"
                   ><input id="soundEnabled" type="checkbox" /> Klaviertöne
-                  (Browser-Synthesizer)</label
+                  (Browser)</label
                 >
+                <span id="soundStatus" class="muted" role="status"></span>
                 <div class="piano-scroll">
                   <div
                     id="ledStrip"
@@ -417,11 +419,10 @@
               <p class="hint">
                 Komplette Datei mit aktueller Kanalwahl und Transposition,
                 unabhängig vom Übungsabschnitt und Tastaturbereich. Lokaler
-                Klavier-Synthesizer mit Notenlängen und Originaltempo
-                einschließlich Tempoänderungen, ohne Originalinstrumente oder
-                Pedal. Die LEDs zeigen gleichzeitig die klingenden Noten, soweit
-                sie einer Taste zugeordnet sind; Trainingsanschläge werden dabei
-                nicht gewertet.
+                Klavier-Samples mit Notenlängen und Originaltempo einschließlich
+                Tempoänderungen, ohne Originalinstrumente oder Pedal. Die LEDs
+                zeigen gleichzeitig die klingenden Noten, soweit sie einer Taste
+                zugeordnet sind; Trainingsanschläge werden dabei nicht gewertet.
               </p>
               <p class="hint">
                 Noten müssen in deiner konfigurierten Tastatur liegen und einer
@@ -797,7 +798,13 @@
         <section id="system" class="page" hidden>
           <p class="eyebrow">GERÄT</p>
           <h1>Systeminformationen</h1>
-          <article><dl id="systemInfo"></dl></article>
+          <article>
+            <dl id="systemInfo"></dl>
+            <p class="hint">
+              Klavierklang: FluidR3 / MIDI.js Soundfonts ·
+              <a href="/piano-credits.txt">Quelle und Lizenz</a>
+            </p>
+          </article>
           <article>
             <h2>Gerätepasswort ändern</h2>
             <p>

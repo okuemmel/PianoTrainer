@@ -1,4 +1,4 @@
-/* Small local piano-like synthesizer for MIDI listening; no device MIDI events. */
+/* Local sampled piano with synthesis fallback; no training MIDI events. */
 (function (root) {
   "use strict";
   class Player {
@@ -18,8 +18,12 @@
       this.position = 0;
       this.volume = 0.55;
       this.performance = null;
+      this.samples = null;
+      this.sampleError = "";
+      this.preparing = null;
     }
     unlock() {
+      this.Audio ||= root.AudioContext || root.webkitAudioContext;
       if (!this.Audio)
         throw Error("Dieser Browser unterstützt keine Web-Audio-Ausgabe.");
       if (!this.context) {
@@ -28,9 +32,22 @@
         this.master.gain.value = this.volume * 0.35;
         this.master.connect(this.context.destination);
       }
-      return this.context.state === "suspended"
-        ? this.context.resume()
-        : Promise.resolve();
+      const resumed =
+        this.context.state === "suspended"
+          ? this.context.resume()
+          : Promise.resolve();
+      if (!root.PianoAudio) return resumed;
+      if (!this.preparing)
+        this.preparing = resumed.then(async () => {
+          try {
+            this.samples = await root.PianoAudio.bank.prepare(this.context);
+            this.sampleError = "";
+          } catch (error) {
+            this.sampleError = error.message;
+            this.preparing = null;
+          }
+        });
+      return resumed.then(() => this.preparing);
     }
     setVolume(value) {
       this.volume = Math.max(0, Math.min(1, value));
@@ -69,6 +86,10 @@
           state: this.state,
           position: this.position,
           duration: performance.duration,
+          sound: this.samples
+            ? "Klavier-Samples"
+            : "Synthesizer" +
+              (this.sampleError ? " (Klavier nicht geladen)" : ""),
           notes: [...this.voices]
             .filter(
               (v) =>
@@ -89,6 +110,20 @@
         end =
           start +
           Math.max(0.03, note.duration - Math.max(0, elapsed - note.time));
+      const sample = root.PianoAudio?.sampleVoice(
+        this.context,
+        this.master,
+        this.samples,
+        note.note,
+        note.velocity,
+        start,
+        end,
+        (voice) => this.voices.delete(voice),
+      );
+      if (sample) {
+        this.voices.add(sample);
+        return;
+      }
       const gain = this.context.createGain(),
         amplitude = (0.08 * note.velocity) / 127;
       gain.gain.setValueAtTime(0.0001, start);

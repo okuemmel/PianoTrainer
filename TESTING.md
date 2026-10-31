@@ -9,7 +9,7 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
 | `pio test -e native` | 18 von 18 Tests bestanden |
-| `npm test` | 43 von 43 Browser-/MIDI-Tests bestanden |
+| `npm test` | 46 von 46 Browser-/MIDI-Tests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -18,7 +18,7 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 Speicherbelegung laut finalem Linkergebnis:
 
 - Statischer RAM: **50.700 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.147.164 / 1.572.864 Bytes (72,9 %)**.
+- Anwendung im Flash: **1.147.640 / 1.572.864 Bytes (73,0 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -201,3 +201,16 @@ Die Prüfung des Ausgabepuffers bestätigt den Softwarepfad, kein optisch beobac
 Nach der Rückmeldung „Ton stoppt, Status Gestoppt“ wurde der direkte `midiPlayer.stop()` im Fenster-Blur-Handler gefunden. Ein solcher Fokusverlust setzte bislang die Wiedergabe auf Anfang zurück. Der Handler gibt jetzt weiterhin manuelle Tasten frei und pausiert aktives Training, lässt den Datei-Player jedoch laufen. Erst eine tatsächlich versteckte Seite pausiert die Wiedergabe mit erhaltener Position. Der Status nennt den Grund; auch Tasteneingabe, Übungsstart, Dateiauswahl und bewusstes Stoppen sind als Auslöser erkennbar.
 
 Regression: Datei-Player bei Sekunde sieben, Fenster-Blur ohne Stopp, Hintergrundwechsel mit Pause und LED-Freigabe, Fortsetzen bei Sekunde sieben und explizites Stoppen mit sichtbarer Begründung. Der Audio-Unit-Test läuft zusätzlich über 18 Sekunden einer zweiminütigen Folge und endet erst am vorgesehenen Dateiende. Diese Prüfungen verwenden jsdom und einen AudioContext-Testdouble. Der konkrete Fokusauslöser auf dem Nutzergerät ist damit noch nicht beobachtet.
+
+
+## Lokale Klavier-Samples · Firmware 1.7.1
+
+Player und virtuelle Tasten verwenden 16 lokal ausgelieferte MP3-Samples, ausgewählt aus dem FluidR3-Klavier von MIDI.js Soundfonts. Quellnachweis und Lizenz stehen zusätzlich als Textdatei auf dem Gerät zur Verfügung. Das Klangpaket ist 361.613 Bytes groß, SHA-256 `947049d21d15a778085beb0f6eccd37aa507b7ec3ede92ca2bca3002510cfd4e`. Der Builder prüft den Quell-Hash, liest lediglich die Datentabelle und kopiert die ausgewählten MP3-Bytes unverändert.
+
+Der Browser lädt das Paket einmal pro Seite und dekodiert es pro AudioContext einmal. Er wählt den nächsten Stützton, transponiert per Wiedergaberate und steuert Lautstärke und Filter mit der Velocity. Sanfte Attack-/Release-Hüllkurven vermeiden harte Tonenden. Außerhalb MIDI 21–108 und bei Lade-/Dekodierfehlern bleibt der Synthesizer verfügbar. Erste Aktivierung zeigt den Ladevorgang an; eine inzwischen versteckte Trainingsseite startet die Wiedergabe nach dem Laden nicht automatisch.
+
+Bestanden: 18 native und 46 Node-Tests, darunter Paketgrenzen, Wiederholung nach Ladefehlern, gemeinsamer Download für zwei AudioContexts, korrekte Transposition, Velocity und Release sowie ein DOM-Durchlauf für Sample-Ausgabe über virtuelle Tasten und MIDI-Player. Alle 16 MP3-Daten wurden zusätzlich mit FFmpeg vollständig dekodiert. Der Browser-AudioContext in den Tests ist simuliert; hörbare Qualität und Safari-Ausgabe sind noch am Nutzergerät zu prüfen.
+
+Die vorherige 90-Sekunden-USB-Aufnahme zeigte die anfängliche USB-Reset-/Startsequenz und danach keine weiteren protokollierten Neustarts oder HTTP-/WLAN-Fehler. Die parallel abgefragte Gerätelaufzeit stieg durchgehend, die WLAN-Signalstärke lag etwa bei −58 bis −61 dBm. Die Stichproben zeigten keine aktive Wiedergabe-LED-Vorschau; damit wurde kein Abbruch während einer aktiven Wiedergabe erfasst. Der Nutzer meldete anschließend, dass es beim erneuten Versuch zu funktionieren scheint. Eine eindeutige Ursache ist daraus nicht bewiesen.
+
+Firmware 1.7.1 und das neue LittleFS-Image wurden per USB übertragen; beide Flash-Hashes wurden verifiziert. Danach wurde `piano-samples.bin` tatsächlich über die geschützte Geräte-HTTP-Route geladen: 361.613 Bytes, bytegleich mit der lokalen Datei und identischer SHA-256. Die Statusabfrage meldete Firmware 1.7.1 und bereites Dateisystem. Eine parallel zum Klangpaket laufende Statusabfrage lief zunächst in ein Vier-Sekunden-Zeitlimit; nach Abschluss des Downloads antwortete sie wieder erfolgreich. Der synchrone Webserver kann während dieses einmaligen größeren Transfers andere Anfragen verzögern. Es wurde keine hörbare Ausgabe auf Safari geprüft.

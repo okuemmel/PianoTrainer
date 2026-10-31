@@ -20,6 +20,7 @@ let playbackLedActive = false,
   playbackLedPending = null,
   playbackLedSending = false;
 let audioContext = null;
+let pianoSamples = null;
 const voices = new Map();
 let lastLedSnapshot = null,
   lastLedKey = "";
@@ -852,7 +853,7 @@ function renderLedPreview(snapshot, force = false) {
     " Tastenanzeigen an";
 }
 
-// Local, opt-in synthesis. No samples, CDN or sound generation on the ESP32.
+// Local, opt-in audio. Samples are served by the trainer; synthesis is a fallback.
 function audioReady() {
   const Audio = window.AudioContext || window.webkitAudioContext;
   if (!Audio)
@@ -864,10 +865,23 @@ function audioReady() {
 $("#soundEnabled").onchange = () => {
   if (!$("#soundEnabled").checked) {
     silence();
+    $("#soundStatus").textContent = "";
     return;
   }
   try {
-    audioReady().catch(audioError);
+    const ready = audioReady();
+    $("#soundStatus").textContent = "Klavier wird geladen …";
+    ready
+      .then(() => window.PianoAudio.bank.prepare(audioContext))
+      .then((samples) => {
+        pianoSamples = samples;
+        $("#soundStatus").textContent = "Klavier bereit";
+      })
+      .catch((error) => {
+        $("#soundStatus").textContent =
+          "Synthesizer aktiv · Klavier nicht geladen";
+        toast("Klavier: " + error.message, true);
+      });
   } catch (e) {
     audioError(e);
   }
@@ -882,6 +896,22 @@ function soundOn(note, velocity) {
   try {
     audioReady().catch(audioError);
     soundOff(note);
+    const sample = window.PianoAudio?.sampleVoice(
+      audioContext,
+      audioContext.destination,
+      pianoSamples,
+      note,
+      velocity,
+      audioContext.currentTime,
+      audioContext.currentTime + 15,
+      (voice) => {
+        if (voices.get(note) === voice) voices.delete(note);
+      },
+    );
+    if (sample) {
+      voices.set(note, sample);
+      return;
+    }
     const now = audioContext.currentTime,
       gain = audioContext.createGain();
     gain.gain.setValueAtTime(0.0001, now);
@@ -1283,6 +1313,7 @@ function renderLibraryList(id, result, source) {
     listen.onclick = () => {
       let unlock;
       try {
+        $("#midiPlaybackStatus").textContent = "Klavier wird geladen …";
         unlock = midiPlayer.unlock();
       } catch (error) {
         toast(error.message, true);
@@ -1470,9 +1501,11 @@ function renderPlayback(view) {
     format(view.position) +
     " / " +
     format(view.duration) +
-    (view.reason ? " · " + view.reason : "");
+    (view.reason ? " · " + view.reason : "") +
+    (view.sound ? " · " + view.sound : "");
 }
 async function playSelectedMidi() {
+  if (document.hidden || $("#training").hidden) return;
   const file = remoteMidi || $("#midiFile").files[0];
   if (!file) throw Error("Bitte zuerst eine MIDI-Datei auswählen.");
   const performance = window.MidiFile.parse(await file.arrayBuffer(), {
@@ -1482,11 +1515,13 @@ async function playSelectedMidi() {
   });
   playbackName = file.name;
   if (trainingRunning()) await trainingCommand({ command: "pause" });
+  if (document.hidden || $("#training").hidden) return;
   midiPlayer.play(performance);
 }
 $("#listenMidi").onclick = () => {
   let unlock;
   try {
+    $("#midiPlaybackStatus").textContent = "Klavier wird geladen …";
     unlock = midiPlayer.unlock();
   } catch (error) {
     toast(error.message, true);

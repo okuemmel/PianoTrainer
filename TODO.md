@@ -46,3 +46,5 @@ Die Anbindung wurde auf dem vorhandenen C3 geprüft; ein S3 ist für diese Impor
 - [x] MIDICollection-Suche mit Seitenwechsel, Import und Anhören.
 - [x] Anhörfunktion neben Übungsstart; echte und virtuelle LEDs zeigen klingende Noten ohne Trainingswertung.
 - [x] Handy-/Tablet-Layout: Navigation standardmäßig eingeklappt, aufklappbare Optionen und Importbereiche.
+
+- [x] Kompakten lokalen Sample-Klavierklang für Player und virtuelle Tasten ergänzen (Firmware 1.7.1), mit Synthesizer als Rückfall.
