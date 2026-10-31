@@ -167,10 +167,11 @@ void TrainerWebServer::maintenanceRoutes() {
           return;
         }
         updateStarted = false;
-        if (updateFilesystem) fsReady = LittleFS.begin(false, "/littlefs", 10, "littlefs");
+        const bool filesystemUpdate = updateFilesystem;
+        if (filesystemUpdate) fsReady = LittleFS.begin(false, "/littlefs", 10, "littlefs");
         updateFilesystem = false;
         updateSeen = false;
-        if (!fsReady) {
+        if (filesystemUpdate && !fsReady) {
           error(500,
                 "Webdateisystem konnte nicht geöffnet werden. Webpaket erneut übertragen oder USB "
                 "verwenden.");
@@ -186,11 +187,11 @@ void TrainerWebServer::recoveryPage() {
   if (!auth()) return;
   // Emergency UI lives in firmware; it remains available without a mounted filesystem.
   static const char page[] PROGMEM =
-      R"html(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Piano Trainer Recovery</title><body style="font:16px system-ui;max-width:640px;margin:32px auto;padding:16px"><h1>Piano Trainer · Recovery</h1><p>Webdateien wiederherstellen / Restore web files</p><p>littlefs.ptupdate auswählen und Stromversorgung verbunden lassen.<br>Select littlefs.ptupdate and keep power connected.</p><form id="restore"><input id="file" type="file" name="package" accept=".ptupdate,application/octet-stream" required><button id="send">Webpaket übertragen / Upload web package</button></form><progress id="progress" max="100" value="0"></progress><p id="status" role="status"></p><a href="/">Nach Neustart öffnen / Open after restart</a><script>
+      R"html(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Piano Trainer Recovery</title><body style="font:16px system-ui;max-width:640px;margin:32px auto;padding:16px"><h1>Piano Trainer · Recovery</h1><p>Firmware &amp; Oberfläche aktualisieren / Update firmware &amp; interface</p><p>firmware.ptupdate auswählen und Stromversorgung verbunden lassen.<br>Select firmware.ptupdate and keep power connected.</p><form id="restore"><input id="file" type="file" name="package" accept=".ptupdate,application/octet-stream" required><button id="send">Update übertragen / Upload update</button></form><progress id="progress" max="100" value="0"></progress><p id="status" role="status"></p><a href="/">Nach Neustart öffnen / Open after restart</a><script>
 let busy=false;window.onbeforeunload=e=>{if(busy){e.preventDefault();e.returnValue='';}};
 document.querySelector('#restore').onsubmit=async e=>{e.preventDefault();if(busy)return;
 const status=document.querySelector('#status'),button=document.querySelector('#send'),bar=document.querySelector('#progress');
-try{const file=document.querySelector('#file').files[0],header=JSON.parse(await file.slice(0,256).text());if(header.kind!=='web')throw Error('littlefs.ptupdate erforderlich / Web package required');
+try{const file=document.querySelector('#file').files[0],header=JSON.parse(await file.slice(0,256).text());if(header.kind!=='firmware')throw Error('firmware.ptupdate erforderlich / Firmware package required');
 busy=true;button.disabled=true;bar.value=0;status.textContent='Übertragung / Upload …';
 const request=new XMLHttpRequest();request.open('POST','/api/update');request.setRequestHeader('X-Trainer','1');request.timeout=180000;
 request.upload.onprogress=e=>{if(e.lengthComputable)bar.value=Math.min(99,Math.round(e.loaded/e.total*100));};

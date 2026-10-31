@@ -2,6 +2,13 @@
 
 Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen aus `include/AppInfo.h`; ältere Einträge wurden aus Git übernommen.
 
+## 1.12.0 · 2026-10-31
+
+- Oberfläche und Sprachdateien komprimiert in die Firmware einbetten: ein Firmwarepaket aktualisiert alles gemeinsam im freien OTA-Slot.
+- Vollständige Oberfläche auch ohne LittleFS bereitstellen; vorhandene Klaviersamples erhalten, bei fehlenden Samples Synthesizer verwenden.
+- Firmwareupdates auch bei fehlendem Dateisystem erfolgreich abschließen und /recovery als Firmwareuploader anbieten.
+- Fertige Updatepakete, USB-Installationspaket, Anleitung und SHA-256-Prüfsummen versioniert direkt im Git-Repository bereitstellen.
+
 ## 1.11.0 · 2026-10-31
 
 - Erstes GitHub-Release mit geprüften Updatepaketen, USB-Installationspaket und SHA-256-Prüfsummen bereitstellen.

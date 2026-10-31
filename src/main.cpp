@@ -31,7 +31,7 @@ void setup() {
   // The partition label must match partitions.csv; the core defaults to "spiffs".
   bool fs = LittleFS.begin(false, "/littlefs", 10, "littlefs");
   if (!fs)
-    Serial.println("LittleFS fehlt. Bitte uploadfs ausführen.");
+    Serial.println("LittleFS fehlt. Oberfläche bereit; Klavierklang mit Synthesizer-Fallback.");
   else
     Serial.println("LittleFS bereit.");
   wifi.begin();

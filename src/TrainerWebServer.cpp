@@ -3,6 +3,7 @@
 #include <LittleFS.h>
 
 #include "AppInfo.h"
+#include "EmbeddedWebAssets.h"
 bool TrainerWebServer::auth(bool mutation) {
   server.sendHeader("Cache-Control", "no-store");
   server.sendHeader("X-Content-Type-Options", "nosniff");
@@ -92,14 +93,7 @@ void TrainerWebServer::ledReply() {
 }
 void TrainerWebServer::file(const char* path, const char* mime) {
   if (!auth()) return;
-  if (!fsReady || !LittleFS.exists(path)) {
-    Serial.printf("[HTTP] %s -> 503, Webdatei fehlt.\n", path);
-    server.send(503, "text/plain; charset=utf-8",
-                "Webdateien fehlen. Bitte PlatformIO: Upload Filesystem Image ausführen.");
-    return;
-  }
-  String resource(path);
-  if (resource.startsWith("/i18n/")) {
+  if (const auto* asset = EmbeddedWeb::find(path)) {
     server.sendHeader("Vary", "Accept-Encoding");
     String accepted = server.header("Accept-Encoding");
     accepted.toLowerCase();
@@ -116,9 +110,20 @@ void TrainerWebServer::file(const char* path, const char* mime) {
       }
       start = end + 1;
     }
-    if (gzip && LittleFS.exists(resource + ".gz")) resource += ".gz";
+    if (!gzip) {
+      server.send(406, "text/plain", "Gzip support required. Use a current web browser.");
+      return;
+    }
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, mime, reinterpret_cast<const char*>(asset->data), asset->size);
+    return;
   }
-  // Arduino WebServer adds Content-Encoding: gzip for the .gz companion.
+  // Only the optional sample bank is served from LittleFS. Never fall back to stale UI files.
+  if (strcmp(path, "/piano-samples.bin") != 0 || !fsReady || !LittleFS.exists(path)) {
+    server.send(404, "text/plain; charset=utf-8", "Datei nicht gefunden.");
+    return;
+  }
+  String resource(path);
   auto f = LittleFS.open(resource, "r");
   if (!f) {
     Serial.printf("[HTTP] %s -> 503, Webdatei kann nicht geöffnet werden.\n", path);
@@ -136,27 +141,12 @@ void TrainerWebServer::begin(bool filesystemReady) {
   libraryRoutes();
   lessonRoutes();
   maintenanceRoutes();
-  for (const char* path :
-       {"/index.html", "/style.css", "/midi-file.js", "/library.js", "/piano-audio.js",
-        "/piano-samples.bin", "/piano-credits.txt", "/midi-player.js", "/app.js", "/i18n.js",
-        "/i18n/languages.json", "/i18n/de.json", "/i18n/en.json", "/maintenance.js"}) {
-    auto f = fsReady ? LittleFS.open(path, "r") : File();
-    if (f) {
-      Serial.printf("[HTTP] Webdatei %s bereit (%u Bytes).\n", path,
-                    static_cast<unsigned>(f.size()));
-    } else {
-      Serial.printf("[HTTP] FEHLER: Webdatei %s fehlt.\n", path);
-    }
-  }
+  Serial.printf(
+      "[HTTP] Oberfläche %s aus Firmware bereit; Samples: %s.\n", AppInfo::Version,
+      fsReady && LittleFS.exists("/piano-samples.bin") ? "bereit" : "Synthesizer-Fallback");
   const char* headers[] = {"X-Trainer", "Accept-Encoding"};
   server.collectHeaders(headers, 2);
-  server.on("/", HTTP_GET, [this] {
-    if (!fsReady) {
-      recoveryPage();
-      return;
-    }
-    file("/index.html", "text/html; charset=utf-8");
-  });
+  server.on("/", HTTP_GET, [this] { file("/index.html", "text/html; charset=utf-8"); });
   server.on("/recovery", HTTP_GET, [this] { recoveryPage(); });
   server.on("/style.css", HTTP_GET, [this] { file("/style.css", "text/css"); });
   server.on("/midi-file.js", HTTP_GET, [this] { file("/midi-file.js", "application/javascript"); });

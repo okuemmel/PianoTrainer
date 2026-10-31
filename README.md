@@ -8,30 +8,34 @@ Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mi
 
 ## Sprache · Firmware 1.10.0
 
-Die aktuelle Version **1.11.0** ergänzt unter **System → Update, Backup & Restore** Updates per Datei und die Sicherung/Wiederherstellung. Die Versionshistorie steht im [Changelog](CHANGELOG.md).
+Die aktuelle Version **1.12.0** aktualisiert Firmware, Weboberfläche und Sprachen mit einer einzigen Datei. Unter **System → Update, Backup & Restore** stehen außerdem Sicherung und Wiederherstellung bereit. Die Versionshistorie steht im [Changelog](CHANGELOG.md).
 
 Oben rechts lässt sich **Deutsch / English** ohne Neuladen umschalten. Die Auswahl bleibt pro Browser gespeichert. Menüs, Hilfetexte, Einstellungen, Lektionen, Fortschritt, Notenvorschau und Geräteantworten werden übersetzt. Eine laufende Übung oder Wiedergabe und noch nicht gespeicherte Formulareingaben bleiben erhalten. Die Notenvorschau verwendet Deutsch H und Englisch B; MIDI-Nummern und Tonhöhen ändern sich nicht.
 
-Die Übersetzungen liegen lokal in [de.json](data/i18n/de.json) und [en.json](data/i18n/en.json). Weitere Sprachen werden in [languages.json](data/i18n/languages.json) eingetragen und als zusätzliche JSON-Datei abgelegt. Es werden keine Übersetzungsdienste benötigt. [Anleitung für weitere Sprachen](docs/I18N.md). Firmware **und** LittleFS müssen für diese Version aktualisiert werden. Das serielle Diagnoseprotokoll bleibt deutsch; technische API-Kennungen, Dateinamen, SSIDs und Bestätigungswörter werden nicht verändert.
+Die Übersetzungen liegen lokal in [de.json](data/i18n/de.json) und [en.json](data/i18n/en.json). Weitere Sprachen werden in [languages.json](data/i18n/languages.json) eingetragen und als zusätzliche JSON-Datei abgelegt. Es werden keine Übersetzungsdienste benötigt. [Anleitung für weitere Sprachen](docs/I18N.md). Seit Version 1.12.0 genügt ein Firmwareupdate auch für die Oberfläche und ihre Übersetzungen. Das serielle Diagnoseprotokoll bleibt deutsch; technische API-Kennungen, Dateinamen, SSIDs und Bestätigungswörter werden nicht verändert.
 
-## Update, Backup und Restore · Firmware 1.11.0
+## Update, Backup und Restore · Firmware 1.12.0
 
 Unter **System** lädt **Backup herunterladen** eine JSON-Datei mit LED-/Tastaturkonfiguration einschließlich MIDI-Kanal und Zuordnungen, Hostnamen, Nextcloud-Verzeichnis/Benutzer/öffentlichem CA-Zertifikat und allen Lektionsergebnissen herunter. WLAN-Zugang, Webpasswort und Nextcloud-Passwort werden nicht exportiert. Bei der Wiederherstellung bleiben WLAN und Webanmeldung auf dem Zielgerät erhalten; das Nextcloud-Passwort bleibt nur beim selben Ursprung und Benutzer erhalten und muss bei einem anderen Konto neu eingegeben werden. Die Sprachwahl und weitere lokale Browseroptionen liegen weiterhin im jeweiligen Browser.
 
 Eine Backup-Datei auswählen und die Wiederherstellung bestätigen. Format, Schema, GPIOs, Tastaturbereich, sämtliche Zuordnungen und Fortschrittswerte werden vor dem Speichern geprüft. Danach startet der Trainer neu. Der neue gemeinsame NVS-Profildatensatz ersetzt die früheren getrennten Einträge erst nach erfolgreichem Speichern; die bisherigen Einstellungen werden automatisch übernommen. Unvollständige und ungültige Dateien werden abgelehnt. Die Backup-Grenze ist 16 KiB.
 
-Für Updates entstehen beim Bauen automatisch zwei Dateien:
+Für normale Updates genügt **`firmware.ptupdate`**. HTML, CSS, JavaScript und alle Sprachdateien werden beim Firmwarebuild deterministisch mit Gzip komprimiert und direkt in die Firmware eingebettet. Sie werden ohne LittleFS ausgeliefert; Browser erhalten `Content-Encoding: gzip` (Diagnose mit `curl --compressed`). Auch bei fehlendem oder beschädigtem Dateisystem bleibt die vollständige Oberfläche verfügbar. Alte Oberflächendateien im LittleFS werden nicht mehr verwendet.
 
-| Befehl | Paket |
-|---|---|
-| `pio run -e c3_supermini` | `.pio/build/c3_supermini/firmware.ptupdate` |
-| `pio run -e c3_supermini -t buildfs` | `.pio/build/c3_supermini/littlefs.ptupdate` |
+| Befehl | Paket | Verwendung |
+|---|---|---|
+| `pio run -e c3_supermini` | `.pio/build/c3_supermini/firmware.ptupdate` | Firmware, Oberfläche und Sprachen gemeinsam |
+| `pio run -e c3_supermini -t buildfs` | `.pio/build/c3_supermini/littlefs.ptupdate` | Optionaler Samplebestand / USB-Erstinstallation |
 
-Unter **System → Updatepaket** zuerst das Firmwarepaket übertragen, den Neustart abwarten und danach das Webpaket derselben Version übertragen. Anschließend die Seite neu laden. Ein Paket enthält einen 256-Byte-Manifestkopf mit Format, C3-Ziel, Image-Art, Länge, Version und MD5-Prüfsumme sowie das ursprüngliche Image. Normale `.bin`-Dateien lassen sich nicht durch Umbenennen in Pakete verwandeln. Falls nötig kann `python3 tools/build_update.py firmware PFAD/firmware.bin --version 1.11.0` beziehungsweise `web PFAD/littlefs.bin` die Pakete separat erzeugen. Die Prüfsumme prüft die Übertragung; Pakete aus dem eigenen oder einem vertrauenswürdigen Build verwenden.
+Unter **System → Updatepaket** das Firmwarepaket übertragen, den Neustart abwarten und die Seite neu laden. Das gilt auch für den Wechsel von 1.11.0 auf 1.12.0: **kein zusätzliches LittleFS-Update erforderlich**. Vorhandene Klaviersamples bleiben erhalten. Ohne Samples verwendet der Player den eingebauten Browser-Synthesizer.
 
-Während eines Updates werden Übung, Ton und LEDs angehalten. Die Prozentanzeige für die Übertragung endet zunächst bei 99 %; erst die Bestätigung des Geräts setzt 100 %. Firmware wird in den freien OTA-Slot geschrieben und nach erfolgreicher Prüfung für den nächsten Start aktiviert. Ein fehlerhafter Firmwareupload aktiviert den neuen Slot nicht. Die Webpartition hat eine einzelne Kopie: Stromunterbrechung oder ein fehlgeschlagenes Schreiben kann einen erneuten Webupload oder einen LittleFS-Upload über USB erfordern. Unter **`/recovery`** steht dafür eine kleine zweisprachige Uploadseite direkt aus der Firmware bereit; sie funktioniert auch ohne LittleFS. Bei fehlendem Dateisystem erscheint sie außerdem auf der Startseite. Die Firmware und das Netzwerk müssen dafür erreichbar sein. Beide Updatearten erhalten NVS und Lernfortschritt. Ein Update von einer externen URL ist in dieser ersten Umsetzung nicht enthalten.
+Ein Paket enthält einen 256-Byte-Manifestkopf mit Format, C3-Ziel, Image-Art, Länge, Version und MD5-Prüfsumme sowie das ursprüngliche Image. Normale `.bin`-Dateien lassen sich nicht durch Umbenennen in Pakete verwandeln. Falls nötig kann `python3 tools/build_update.py firmware PFAD/firmware.bin --version 1.12.0` die Pakete separat erzeugen. Die Prüfsumme prüft die Übertragung; Pakete aus dem eigenen oder einem vertrauenswürdigen Build verwenden.
 
-Fertige Pakete, ein USB-Paket für die Erstinstallation und SHA-256-Prüfsummen stehen in den [GitHub-Releases](https://github.com/okuemmel/PianoTrainer/releases). `python3 tools/build_release.py` bündelt nach beiden PlatformIO-Builds die Dateien unter `dist/vVERSION/` und prüft, dass die Updatepakete den aktuellen Images entsprechen. Bei einem eigenen PlatformIO-Core-Verzeichnis `PLATFORMIO_CORE_DIR` entsprechend setzen.
+Während eines Updates werden Übung, Ton und LEDs angehalten. Die Prozentanzeige endet zunächst bei 99 %; erst die Bestätigung des Geräts setzt 100 %. Firmware und eingebettete Oberfläche werden gemeinsam in den freien OTA-Slot geschrieben und nach erfolgreicher Prüfung für den nächsten Start aktiviert. Ein unvollständiger oder fehlerhafter Firmwareupload aktiviert den neuen Slot nicht. Dies ist keine automatische Rückkehr bei einem Fehler nach dem Start einer neuen Firmware. Einstellungen und Lernfortschritt bleiben erhalten. Unter **`/recovery`** steht zusätzlich ein kleiner Firmwareuploader bereit.
+
+Das optionale `littlefs.ptupdate` bleibt für geänderte oder fehlende Klaviersamples verfügbar. Es schreibt weiterhin eine einzelne Dateisystemkopie; ein Abbruch kann einen erneuten Upload oder USB erfordern. Die eingebettete Oberfläche bleibt davon unabhängig. Das LittleFS-Image enthält für USB-Kompatibilität auch die ursprünglichen Webdateien; sie werden nicht mehr ausgeliefert. Ein Update von einer externen URL ist noch nicht enthalten.
+
+Fertige Pakete, ein USB-Paket für die Erstinstallation und SHA-256-Prüfsummen stehen in [dist/v1.12.0](dist/v1.12.0/) direkt im Git-Repository und in den [GitHub-Releases](https://github.com/okuemmel/PianoTrainer/releases). `python3 tools/build_release.py` bündelt nach beiden PlatformIO-Builds die Dateien unter `dist/vVERSION/` und prüft, dass die Updatepakete den aktuellen Images entsprechen. Bei einem eigenen PlatformIO-Core-Verzeichnis `PLATFORMIO_CORE_DIR` entsprechend setzen. Für spätere Versionen deren Verzeichnis gezielt in `.gitignore` freigeben; keine privaten Backups einchecken.
 
 ## Automatisches Changelog
 

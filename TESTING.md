@@ -10,7 +10,7 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
 | `pio test -e native` | 20 von 20 Tests bestanden |
 | `npm test` | 63 von 63 Browser-/MIDI-/Sprach-/Wartungstests bestanden |
-| `python3 -m unittest discover -s test -p 'test_tools.py'` | 3 von 3 Werkzeugtests bestanden |
+| `python3 -m unittest discover -s test -p 'test_tools.py'` | 4 von 4 Werkzeugtests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -19,7 +19,7 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 Speicherbelegung laut finalem Linkergebnis:
 
 - Statischer RAM: **51.276 / 327.680 Bytes (15,6 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.183.440 / 1.572.864 Bytes (75,2 %)**.
+- Anwendung im Flash: **1.262.778 / 1.572.864 Bytes (80,3 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -33,6 +33,12 @@ C++: Standardkonfiguration, erlaubte/gesperrte GPIOs, Bereichsgrenzen, unzuläss
 DOM: 49 virtuelle Tasten, 128 Zuordnungen, GPIO-Auswahl, geordnete mehrstimmige Note-On/Off-Ereignisse, Freigabe bei Fokusverlust und Seitenwechsel, typisierte Konfigurationsdaten samt Schreibzugriffsheader, WLAN-Auswahl und Passwortlöschung im Formular. Ein SSID-Name mit HTML-Zeichen wird als Text dargestellt.
 
 Die DOM-Tests verwenden jsdom und simulierte API-Antworten. Sie bestätigen weder die reale Firmware-HTTP-Authentifizierung noch die visuelle Darstellung auf iPad/Safari. Ein sichtbarer Browserlauf war hier mangels Browser-Ausführungswerkzeug nicht möglich.
+
+## Eingebettete Oberfläche · Firmware 1.12.0
+
+63 Node-Tests, 20 native Tests und 4 Python-Werkzeugtests bestanden. Der C3-Build bestätigt, dass die komprimierte Oberfläche einschließlich Sprachdateien in den bisherigen OTA-Slot passt, ohne den statischen RAM-Bedarf zu erhöhen. Der Generator-Test entpackt die tatsächlichen Gzip-Daten bytegenau, prüft optionale Samples und bereits komprimierte Begleitdateien als ausgeschlossen, zusätzliche Sprachdateien als eingeschlossen, unveränderte Generierung ohne Neuschreiben und Regenerierung bei geändertem HTML. Die Recovery-DOM-Prüfung verlangt nun das gemeinsame Firmwarepaket und bestätigt weiterhin 99 % vor der Geräteantwort und 100 % erst nach Erfolg.
+
+Die vollständige Oberfläche wird aus dem Firmware-Flash ausgeliefert; nur die Samplebank wird aus LittleFS geladen. Bei nicht eingebundenem LittleFS wird ein erfolgreich geprüftes Firmwareupdate nicht mehr als fehlgeschlagen gemeldet. Es erfolgte in dieser Änderung kein Upload auf das Gerät: die Browserauslieferung aus dem Flash, fehlendes LittleFS und das neue gemeinsame OTA-Paket sind noch nicht am echten C3 geprüft. Die folgenden Hardware-Ergebnisse gehören zur Vorgängerversion 1.11.0.
 
 ## Update, Backup/Restore und Changelog · Firmware 1.11.0
 

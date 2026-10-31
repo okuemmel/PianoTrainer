@@ -28,12 +28,20 @@ def build(build_dir, output, boot_app0, version):
 ## Webupdate / Web update
 1. System → Update, Backup & Restore öffnen / open.
 2. firmware.ptupdate übertragen / upload. Neustart abwarten / wait for restart.
-3. littlefs.ptupdate derselben Version übertragen / upload from the same version.
-4. Neustart abwarten, Seite neu laden / wait for restart, reload page.
+3. Seite neu laden / reload page. Firmware, Oberfläche und Sprachen sind gemeinsam aktualisiert.
+   Firmware, interface and languages are updated together.
+
+littlefs.ptupdate ist optional: nur für die Klaviersamples / only for the piano samples.
+Für normale Updates NICHT nötig / NOT required for normal updates.
+Ein vorhandener Samplebestand bleibt beim Firmwareupdate erhalten / existing samples are preserved.
 
 Vor einem Update das JSON-Backup herunterladen. Während der Übertragung die
-Stromversorgung verbunden lassen. Die Webpartition hat eine einzelne Kopie.
-Bei unterbrochenem Webupdate /recovery öffnen; bei fehlendem Netzwerk USB verwenden.
+Stromversorgung verbunden lassen. Ein unvollständiger Firmwareupload aktiviert den neuen OTA-Slot nicht.
+An incomplete firmware upload does not activate the new OTA slot.
+Die Oberfläche funktioniert auch ohne LittleFS / the interface works without LittleFS.
+/recovery bietet einen Firmwareupload / provides a firmware upload.
+Das optionale Sampleupdate schreibt eine einzelne Dateisystemkopie; bei Abbruch ggf.
+erneut übertragen oder USB verwenden / interrupted sample updates may need retry or USB.
 Firmwareupdate erhält Einstellungen und Lernfortschritt. Passwörter werden nicht exportiert.
 
 ## USB-Erstinstallation / USB installation

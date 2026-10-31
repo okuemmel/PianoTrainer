@@ -2152,7 +2152,10 @@ $("#updateForm").onsubmit = (event) => {
       new Uint8Array(await file.slice(0, 256).arrayBuffer()),
       file.size,
     );
-    const kind = metadata.kind === "web" ? "Weboberfläche" : "Firmware";
+    const kind =
+      metadata.kind === "web"
+        ? "Klaviersamples (optional)"
+        : "Firmware, Oberfläche und Sprachen";
     if (
       !confirm(
         I18n.t("Update übertragen und Gerät neu starten?") +

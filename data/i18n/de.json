@@ -682,7 +682,6 @@
     "Backup-Datei (.json)": "Backup-Datei (.json)",
     "Backup wiederherstellen & neu starten": "Backup wiederherstellen & neu starten",
     "Updatepaket (.ptupdate)": "Updatepaket (.ptupdate)",
-    "Zuerst firmware.ptupdate, danach littlefs.ptupdate aus derselben Version übertragen. Pakete werden beim PlatformIO-Build erzeugt. Während der Übertragung die Stromversorgung verbunden lassen. Ein unterbrochenes Webupdate kann eine Wiederherstellung über USB erfordern.": "Zuerst firmware.ptupdate, danach littlefs.ptupdate aus derselben Version übertragen. Pakete werden beim PlatformIO-Build erzeugt. Während der Übertragung die Stromversorgung verbunden lassen. Ein unterbrochenes Webupdate kann eine Wiederherstellung über USB erfordern.",
     "Update übertragen": "Update übertragen",
     "Übertragungsfortschritt": "Übertragungsfortschritt",
     "Seite nach Neustart neu laden": "Seite nach Neustart neu laden",
@@ -712,6 +711,9 @@
     "Webdateisystem konnte nicht geöffnet werden. Webpaket erneut übertragen oder USB verwenden.": "Webdateisystem konnte nicht geöffnet werden. Webpaket erneut übertragen oder USB verwenden.",
     "Ungültige Nextcloud-Einstellungen im Backup.": "Ungültige Nextcloud-Einstellungen im Backup.",
     "Ungültiger Lernfortschritt im Backup.": "Ungültiger Lernfortschritt im Backup.",
-    "Backup ist zu groß.": "Backup ist zu groß."
+    "Backup ist zu groß.": "Backup ist zu groß.",
+    "firmware.ptupdate aktualisiert Firmware, Oberfläche und Sprachen gemeinsam. Klaviersamples bleiben erhalten. Während der Übertragung die Stromversorgung verbunden lassen.": "firmware.ptupdate aktualisiert Firmware, Oberfläche und Sprachen gemeinsam. Klaviersamples bleiben erhalten. Während der Übertragung die Stromversorgung verbunden lassen.",
+    "Klaviersamples (optional)": "Klaviersamples (optional)",
+    "Firmware, Oberfläche und Sprachen": "Firmware, Oberfläche und Sprachen"
   }
 }

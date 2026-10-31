@@ -4,7 +4,8 @@
 .vscode/launch.json
 __pycache__/
 node_modules/
-dist/
+dist/*
+!dist/v1.12.0/
 data/i18n/*.json.gz
 .DS_Store
 .env

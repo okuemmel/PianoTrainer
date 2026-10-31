@@ -1,4 +1,5 @@
 import hashlib
+import gzip
 import importlib.util
 import json
 from pathlib import Path
@@ -15,6 +16,33 @@ def load(name):
     return module
 
 class BuildTools(unittest.TestCase):
+    def test_embedded_assets_roundtrip_and_rebuild_without_optional_samples(self):
+        embedder = load('embed_web')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); data = root / 'data'; data.mkdir()
+            (data / 'i18n').mkdir()
+            (data / 'index.html').write_bytes(b'<html>Trainer</html>')
+            (data / 'i18n/fr.json').write_bytes(b'{"language":"fr"}')
+            (data / 'i18n/fr.json.gz').write_bytes(b'ignored companion')
+            (data / 'piano-samples.bin').write_bytes(b'optional samples')
+            output = root / 'generated/EmbeddedWebAssets.h'
+            entries = embedder.generate(data, output)
+            self.assertEqual({path for path, _ in entries}, {'/index.html', '/i18n/fr.json'})
+            for path, compressed in entries:
+                self.assertEqual(gzip.decompress(compressed), (data / path[1:]).read_bytes())
+            first = output.read_bytes(); timestamp = output.stat().st_mtime_ns
+            embedder.generate(data, output)
+            self.assertEqual(first, output.read_bytes())
+            self.assertEqual(timestamp, output.stat().st_mtime_ns)
+            (data / 'index.html').write_bytes(b'<html>Updated trainer</html>')
+            updated = dict(embedder.generate(data, output))
+            self.assertNotEqual(first, output.read_bytes())
+            self.assertEqual(gzip.decompress(updated['/index.html']), b'<html>Updated trainer</html>')
+            actual = dict(embedder.assets(ROOT / 'data'))
+            self.assertIn('/maintenance.js', actual)
+            self.assertIn('/i18n/en.json', actual)
+            self.assertNotIn('/piano-samples.bin', actual)
+
     def test_package_tracks_payload_size_and_checksum(self):
         packer = load('build_update')
         with tempfile.TemporaryDirectory() as folder:

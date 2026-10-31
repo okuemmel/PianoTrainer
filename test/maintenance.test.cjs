@@ -87,7 +87,7 @@ test("uploader sends mutation header and multipart file, reports transfer separa
   await assert.rejects(dropped, /Verbindung beim Update unterbrochen/);
 });
 
-test("firmware recovery page rejects a firmware package and waits for web update verification", async (t) => {
+test("firmware recovery page rejects a sample package and waits for firmware update verification", async (t) => {
   const fs = require("node:fs"),
     { JSDOM } = require("jsdom");
   const source = fs.readFileSync("src/MaintenanceRoutes.cpp", "utf8");
@@ -100,7 +100,7 @@ test("firmware recovery page rejects a firmware package and waits for web update
   const w = dom.window,
     d = w.document;
   let request,
-    kind = "firmware";
+    kind = "web";
   w.XMLHttpRequest = class {
     constructor() {
       request = this;
@@ -128,8 +128,11 @@ test("firmware recovery page rejects a firmware package and waits for web update
   };
   await submit();
   assert.equal(request, undefined);
-  assert.match(d.querySelector("#status").textContent, /Web package required/);
-  kind = "web";
+  assert.match(
+    d.querySelector("#status").textContent,
+    /Firmware package required/,
+  );
+  kind = "firmware";
   await submit();
   assert.ok(request);
   assert.equal(d.querySelector("#send").disabled, true);
