@@ -669,7 +669,7 @@ function renderStatus(s) {
 }
 async function poll() {
   try {
-    if (!document.hidden) {
+    if (!document.hidden && !maintenanceBusy) {
       status = await api("status");
       renderStatus(status);
     }
@@ -697,6 +697,7 @@ async function poll() {
 setInterval(() => {
   if (
     !document.hidden &&
+    !maintenanceBusy &&
     (held.size || (location.hash === "#training" && trainingRunning()))
   )
     noteCommand({ heartbeat: true });
@@ -2061,3 +2062,132 @@ $("#resetLessonProgress").onclick = () => {
     toast("Lernfortschritt zurückgesetzt.");
   });
 };
+
+let maintenanceBusy = false;
+const maintenanceMessage = (source) =>
+  I18n.text($("#maintenanceStatus"), source);
+function maintenanceControls(busy) {
+  maintenanceBusy = busy;
+  document
+    .querySelectorAll(
+      "#updateForm button, #restoreForm button, #downloadBackup, #updateFile, #backupFile",
+    )
+    .forEach((node) => (node.disabled = busy));
+}
+async function quietForMaintenance() {
+  midiPlayer.stop("Wartung gestartet");
+  silence();
+  await release();
+  await commandQueue;
+  await api("training", { command: "free" });
+}
+window.addEventListener("beforeunload", (event) => {
+  if (maintenanceBusy) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+$("#downloadBackup").onclick = () =>
+  run(async () => {
+    if (maintenanceBusy) return;
+    const backup = await api("backup");
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "piano-trainer-backup.json";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    maintenanceMessage(() => I18n.t("Backup heruntergeladen."));
+  });
+$("#restoreForm").onsubmit = (event) => {
+  event.preventDefault();
+  run(async () => {
+    if (maintenanceBusy) return;
+    const file = $("#backupFile").files[0];
+    if (!file || file.size > 16384)
+      throw Error("Backup-Datei fehlt oder ist größer als 16 KiB.");
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      throw Error("Ungültiges JSON.");
+    }
+    if (backup?.format !== "piano-trainer-backup" || backup.schema !== 1)
+      throw Error("Unbekanntes oder unvollständiges Backup.");
+    if (
+      !confirm(
+        I18n.t(
+          "Einstellungen und Lernfortschritt durch dieses Backup ersetzen? Der Trainer startet neu.",
+        ),
+      )
+    )
+      return;
+    maintenanceControls(true);
+    try {
+      await quietForMaintenance();
+      await api("restore", { ...backup, confirm: "RESTORE" });
+      maintenanceMessage(() =>
+        I18n.t("Backup wiederhergestellt. Neustart … Danach Seite neu laden."),
+      );
+      $("#maintenanceReload").hidden = false;
+    } catch (error) {
+      maintenanceMessage(() => I18n.t(error.message));
+      throw error;
+    } finally {
+      maintenanceControls(false);
+    }
+  });
+};
+$("#updateForm").onsubmit = (event) => {
+  event.preventDefault();
+  run(async () => {
+    if (maintenanceBusy) return;
+    const file = $("#updateFile").files[0];
+    if (!file) throw Error("Update-Datei fehlt oder ist unvollständig.");
+    const metadata = window.TrainerMaintenance.parsePackage(
+      new Uint8Array(await file.slice(0, 256).arrayBuffer()),
+      file.size,
+    );
+    const kind = metadata.kind === "web" ? "Weboberfläche" : "Firmware";
+    if (
+      !confirm(
+        I18n.t("Update übertragen und Gerät neu starten?") +
+          " " +
+          I18n.t(kind) +
+          " " +
+          (metadata.version || ""),
+      )
+    )
+      return;
+    maintenanceControls(true);
+    $("#maintenanceProgress").hidden = false;
+    $("#maintenanceProgress").value = 0;
+    try {
+      await quietForMaintenance();
+      maintenanceMessage(() => I18n.t("Update wird übertragen …"));
+      await window.TrainerMaintenance.upload(file, (value) => {
+        $("#maintenanceProgress").value = value;
+        maintenanceMessage(
+          () => I18n.t("Update wird übertragen …") + " " + value + " %",
+        );
+      });
+      $("#maintenanceProgress").value = 100;
+      maintenanceMessage(() =>
+        I18n.t(
+          "Update geprüft und gespeichert. Neustart … Danach Seite neu laden.",
+        ),
+      );
+      $("#maintenanceReload").hidden = false;
+    } catch (error) {
+      maintenanceMessage(() => I18n.t(error.message));
+      throw error;
+    } finally {
+      maintenanceControls(false);
+    }
+  });
+};
+$("#maintenanceReload").onclick = () => location.reload();

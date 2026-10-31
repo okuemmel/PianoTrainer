@@ -107,6 +107,16 @@ async function setup(
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ url, options, body });
     let data = { ok: true };
+    if (url === "/api/backup")
+      data = {
+        format: "piano-trainer-backup",
+        schema: 1,
+        hostname: "midi-trainer",
+        led: config,
+        cloud: { folder: "", user: "", ca: "" },
+        lessons: {},
+      };
+    if (url === "/api/restore") data = { ok: true, restart: true };
     if (url.startsWith("/i18n/"))
       data = JSON.parse(fs.readFileSync("data" + url, "utf8"));
     if (url === "/api/status")
@@ -234,6 +244,7 @@ async function setup(
   dom.window.eval(fs.readFileSync("data/library.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/piano-audio.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/midi-player.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/maintenance.js", "utf8"));
   dom.window.eval(
     script +
       "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus; window.receivePlaybackSnapshot = renderPlayback; window.testMidiPlayer = midiPlayer;",
@@ -1508,5 +1519,115 @@ test("English preference restores and playback status switches while preserving 
   assert.match(
     s.d.querySelector("#trainingFeedback").textContent,
     /Exercise contains a note outside the keyboard range or without an LED mapping: 108/,
+  );
+});
+
+test("backup download and confirmed restore use local files and the protected device API", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  let blob, download;
+  s.w.URL.createObjectURL = (value) => {
+    blob = value;
+    return "blob:backup";
+  };
+  s.w.URL.revokeObjectURL = () => {};
+  s.w.HTMLAnchorElement.prototype.click = function () {
+    download = this.download;
+  };
+  s.d.querySelector("#downloadBackup").click();
+  await tick();
+  await tick();
+  assert.equal(blob.type, "application/json");
+  assert.equal(download, "piano-trainer-backup.json");
+  assert.ok(s.calls.some((c) => c.url === "/api/backup"));
+  const backup = {
+    format: "piano-trainer-backup",
+    schema: 1,
+    hostname: "my-piano",
+  };
+  const input = s.d.querySelector("#backupFile");
+  Object.defineProperty(input, "files", {
+    configurable: true,
+    value: [{ size: 100, text: async () => JSON.stringify(backup) }],
+  });
+  s.w.confirm = () => false;
+  s.d
+    .querySelector("#restoreForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  assert.equal(s.calls.filter((c) => c.url === "/api/restore").length, 0);
+  s.w.confirm = () => true;
+  s.d
+    .querySelector("#restoreForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  await tick();
+  const restored = s.calls.find((c) => c.url === "/api/restore");
+  assert.deepEqual(restored.body, { ...backup, confirm: "RESTORE" });
+  assert.equal(restored.options.headers["X-Trainer"], "1");
+  assert.equal(s.d.querySelector("#maintenanceReload").hidden, false);
+  assert.match(
+    s.d.querySelector("#maintenanceStatus").textContent,
+    /Backup wiederhergestellt/,
+  );
+});
+test("update UI rejects an incompatible package and waits for verified upload success", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.w.confirm = () => true;
+  const input = s.d.querySelector("#updateFile");
+  const metadata = {
+    format: "piano-trainer-update",
+    schema: 1,
+    target: "esp32s3",
+    kind: "firmware",
+    size: 1000000,
+    md5: "0".repeat(32),
+    version: "1.11.0",
+  };
+  const file = {
+    name: "firmware.ptupdate",
+    size: 1000256,
+    slice: () => ({
+      arrayBuffer: async () =>
+        new TextEncoder().encode(JSON.stringify(metadata).padEnd(256, " "))
+          .buffer,
+    }),
+  };
+  Object.defineProperty(input, "files", { value: [file] });
+  let finish,
+    uploads = 0;
+  s.w.TrainerMaintenance.upload = (_, progress) => {
+    uploads++;
+    progress(99);
+    return new Promise((r) => (finish = r));
+  };
+  s.d
+    .querySelector("#updateForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  assert.equal(uploads, 0);
+  metadata.target = "esp32c3";
+  s.d
+    .querySelector("#updateForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  await tick();
+  assert.equal(uploads, 1);
+  assert.equal(s.d.querySelector("#maintenanceProgress").value, 99);
+  assert.equal(s.d.querySelector("#downloadBackup").disabled, true);
+  assert.equal(s.d.querySelector("#maintenanceReload").hidden, true);
+  finish({ ok: true, restart: true });
+  await tick();
+  await tick();
+  assert.equal(s.d.querySelector("#maintenanceProgress").value, 100);
+  assert.equal(s.d.querySelector("#maintenanceReload").hidden, false);
+  assert.match(
+    s.d.querySelector("#maintenanceStatus").textContent,
+    /Update geprüft und gespeichert/,
   );
 });

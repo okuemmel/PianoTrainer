@@ -60,7 +60,8 @@ bool ConfigManager::begin() {
     if (!prefs.putString("access", "admin")) return false;
     if (!prefs.putBool("auth-v1", true)) return false;
   }
-  const auto storedHostname = prefs.getString("hostname", "midi-trainer");
+  const auto storedHostname =
+      prefs.isKey("profile") ? hostname : prefs.getString("hostname", "midi-trainer");
   if (validHostname(std::string_view(storedHostname.c_str(), storedHostname.length())))
     hostname = storedHostname;
   accessPassword = prefs.getString("access", "admin");
@@ -68,6 +69,12 @@ bool ConfigManager::begin() {
   if (!deserializeJson(network, prefs.getString("network", "{}"))) {
     ssid = network["ssid"] | "";
     wifiPassword = network["password"] | "";
+  }
+  if (prefs.isKey("profile")) {
+    DynamicJsonDocument profile(24576);
+    String error;
+    if (deserializeJson(profile, prefs.getString("profile", ""))) return false;
+    return applyProfile(profile, false, true, error);
   }
   DynamicJsonDocument cloud(8192);
   if (!deserializeJson(cloud, prefs.getString("cloud", "{}"))) {
@@ -101,40 +108,136 @@ bool ConfigManager::begin() {
   }
   return true;
 }
-bool ConfigManager::saveLessonResult(size_t index, int accuracy) {
-  if (index >= LessonCount) return false;
-  auto next = lessonResults;
-  if (!recordLessonResult(next[index], accuracy)) return false;
-  DynamicJsonDocument doc(4096);
+void ConfigManager::backup(JsonObject o, bool internal) const {
+  o["format"] = "piano-trainer-backup";
+  o["schema"] = 1;
+  o["hostname"] = hostname;
+  encode(o.createNestedObject("led"), led);
+  auto cloud = o.createNestedObject("cloud");
+  cloud["folder"] = cloudFolder;
+  cloud["user"] = cloudUser;
+  cloud["ca"] = cloudCa;
+  if (internal) cloud["password"] = cloudPassword;
+  auto results = o.createNestedObject("lessons");
   for (size_t i = 0; i < LessonCount; ++i) {
-    auto item = doc.createNestedObject(Lessons[i].id);
-    item["runs"] = next[i].runs;
-    item["best"] = next[i].best;
+    auto item = results.createNestedObject(Lessons[i].id);
+    item["runs"] = lessonResults[i].runs;
+    item["best"] = lessonResults[i].best;
   }
-  if (doc.overflowed()) return false;
-  String blob;
-  serializeJson(doc, blob);
-  if (!prefs.putString("lessons", blob)) return false;
-  lessonResults = next;
+}
+bool ConfigManager::applyProfile(JsonDocument& doc, bool persist, bool internal, String& error) {
+  auto o = doc.as<JsonObject>();
+  LedConfig nextLed;
+  std::array<LessonResult, LessonCount> nextResults{};
+  if (o["format"] != "piano-trainer-backup" || !o["schema"].is<int>() || o["schema"] != 1 ||
+      !o["led"].is<JsonObject>() || !o["cloud"].is<JsonObject>() ||
+      !o["lessons"].is<JsonObject>() || !o["hostname"].is<const char*>()) {
+    error = "Unbekanntes oder unvollständiges Backup.";
+    return false;
+  }
+  auto name = o["hostname"].as<JsonString>();
+  if (!validHostname(std::string_view(name.c_str(), name.size())) ||
+      !decode(o["led"], nextLed, error)) {
+    if (!error.length()) error = "Ungültiger Hostname.";
+    return false;
+  }
+  auto cloud = o["cloud"].as<JsonObject>();
+  for (const char* key : {"folder", "user", "ca"}) {
+    if (!cloud[key].is<const char*>() ||
+        cloud[key].as<JsonString>().size() != strlen(cloud[key].as<const char*>())) {
+      error = "Ungültige Nextcloud-Einstellungen im Backup.";
+      return false;
+    }
+  }
+  const String folder = cloud["folder"], user = cloud["user"], ca = cloud["ca"];
+  if ((folder.length() && !validLibraryUrl(std::string_view(folder.c_str(), folder.length()))) ||
+      user.length() > 128 || ca.length() > 4096 ||
+      (ca.length() &&
+       (ca.indexOf("-----BEGIN CERTIFICATE-----") < 0 || ca.indexOf("PRIVATE KEY") >= 0))) {
+    error = "Ungültige Nextcloud-Einstellungen im Backup.";
+    return false;
+  }
+  for (size_t i = 0; i < LessonCount; ++i) {
+    auto item = o["lessons"][Lessons[i].id];
+    if (!item.is<JsonObject>() || !item["runs"].is<uint16_t>() || !item["best"].is<int>() ||
+        item["best"].as<int>() < 0 || item["best"].as<int>() > 100 ||
+        (!item["runs"].as<uint16_t>() && item["best"].as<int>())) {
+      error = "Ungültiger Lernfortschritt im Backup.";
+      return false;
+    }
+    nextResults[i] = {item["runs"].as<uint16_t>(), uint8_t(item["best"].as<int>())};
+  }
+  String password;
+  if (internal) {
+    if (!cloud["password"].is<const char*>() || cloud["password"].as<JsonString>().size() > 256) {
+      error = "Ungültige Nextcloud-Einstellungen im Backup.";
+      return false;
+    }
+    password = cloud["password"].as<String>();
+  } else if (libraryOrigin(folder.c_str()) == libraryOrigin(cloudFolder.c_str()) &&
+             user == cloudUser) {
+    password = cloudPassword;
+  }
+  // Always overwrite any supplied password: public backups never import credentials.
+  cloud["password"] = password;
+  if (doc.overflowed()) {
+    error = "Backup ist zu groß.";
+    return false;
+  }
+  if (persist) {
+    String blob;
+    serializeJson(doc, blob);
+    if (!prefs.putString("profile", blob)) {
+      error = "NVS-Speicherfehler.";
+      return false;
+    }
+    // The canonical profile is committed before legacy entries are retired.
+    for (const char* key : {"led", "hostname", "cloud", "lessons"})
+      if (prefs.isKey(key)) prefs.remove(key);
+  }
+  led = nextLed;
+  hostname = name.c_str();
+  lessonResults = nextResults;
+  cloudFolder = folder;
+  cloudUser = user;
+  cloudCa = ca;
+  cloudPassword = password;
   return true;
 }
+bool ConfigManager::restore(JsonDocument& doc, String& error) {
+  return applyProfile(doc, true, false, error);
+}
+bool ConfigManager::saveLessonResult(size_t index, int accuracy) {
+  if (index >= LessonCount) return false;
+  auto next = lessonResults[index];
+  if (!recordLessonResult(next, accuracy)) return false;
+  DynamicJsonDocument doc(24576);
+  backup(doc.to<JsonObject>(), true);
+  auto item = doc["lessons"][Lessons[index].id];
+  item["runs"] = next.runs;
+  item["best"] = next.best;
+  String error;
+  return applyProfile(doc, true, true, error);
+}
 bool ConfigManager::resetLessonProgress() {
-  if (prefs.isKey("lessons") && !prefs.remove("lessons")) return false;
-  lessonResults = {};
-  return true;
+  DynamicJsonDocument doc(24576);
+  backup(doc.to<JsonObject>(), true);
+  for (const auto& lesson : Lessons) {
+    doc["lessons"][lesson.id]["runs"] = 0;
+    doc["lessons"][lesson.id]["best"] = 0;
+  }
+  String error;
+  return applyProfile(doc, true, true, error);
 }
 bool ConfigManager::saveLed(const LedConfig& next) {
   if (validate(next)) return false;
-  DynamicJsonDocument doc(8192);
-  encode(doc.to<JsonObject>(), next);
-  String json;
-  serializeJson(doc, json);
-  if (!prefs.putString("led", json)) return false;
-  led = next;
-  return true;
+  DynamicJsonDocument doc(24576);
+  backup(doc.to<JsonObject>(), true);
+  encode(doc.createNestedObject("led"), next);
+  String error;
+  return applyProfile(doc, true, true, error);
 }
 bool ConfigManager::saveWifi(const String& name, const String& password) {
-  // One NVS record avoids torn credential pairs after power loss.
   DynamicJsonDocument doc(512);
   doc["ssid"] = name;
   doc["password"] = password;
@@ -147,27 +250,22 @@ bool ConfigManager::saveWifi(const String& name, const String& password) {
 }
 bool ConfigManager::saveCloud(const String& folder, const String& user, const String& password,
                               const String& ca) {
-  DynamicJsonDocument doc(8192);
-  doc["folder"] = folder;
-  doc["user"] = user;
-  doc["password"] = password;
-  doc["ca"] = ca;
-  if (doc.overflowed()) return false;
-  String blob;
-  serializeJson(doc, blob);
-  if (!prefs.putString("cloud", blob)) return false;
-  cloudFolder = folder;
-  cloudUser = user;
-  cloudPassword = password;
-  cloudCa = ca;
-  return true;
+  DynamicJsonDocument doc(24576);
+  backup(doc.to<JsonObject>(), true);
+  auto cloud = doc["cloud"];
+  cloud["folder"] = folder;
+  cloud["user"] = user;
+  cloud["password"] = password;
+  cloud["ca"] = ca;
+  String error;
+  return applyProfile(doc, true, true, error);
 }
 bool ConfigManager::saveHostname(const String& name) {
-  if (!validHostname(std::string_view(name.c_str(), name.length())) ||
-      !prefs.putString("hostname", name))
-    return false;
-  hostname = name;
-  return true;
+  DynamicJsonDocument doc(24576);
+  backup(doc.to<JsonObject>(), true);
+  doc["hostname"] = name;
+  String error;
+  return applyProfile(doc, true, true, error);
 }
 bool ConfigManager::saveAccessPassword(const String& password) {
   if (!prefs.putString("access", password)) return false;

@@ -135,10 +135,11 @@ void TrainerWebServer::begin(bool filesystemReady) {
   fsReady = filesystemReady;
   libraryRoutes();
   lessonRoutes();
+  maintenanceRoutes();
   for (const char* path :
        {"/index.html", "/style.css", "/midi-file.js", "/library.js", "/piano-audio.js",
         "/piano-samples.bin", "/piano-credits.txt", "/midi-player.js", "/app.js", "/i18n.js",
-        "/i18n/languages.json", "/i18n/de.json", "/i18n/en.json"}) {
+        "/i18n/languages.json", "/i18n/de.json", "/i18n/en.json", "/maintenance.js"}) {
     auto f = fsReady ? LittleFS.open(path, "r") : File();
     if (f) {
       Serial.printf("[HTTP] Webdatei %s bereit (%u Bytes).\n", path,
@@ -149,7 +150,14 @@ void TrainerWebServer::begin(bool filesystemReady) {
   }
   const char* headers[] = {"X-Trainer", "Accept-Encoding"};
   server.collectHeaders(headers, 2);
-  server.on("/", HTTP_GET, [this] { file("/index.html", "text/html; charset=utf-8"); });
+  server.on("/", HTTP_GET, [this] {
+    if (!fsReady) {
+      recoveryPage();
+      return;
+    }
+    file("/index.html", "text/html; charset=utf-8");
+  });
+  server.on("/recovery", HTTP_GET, [this] { recoveryPage(); });
   server.on("/style.css", HTTP_GET, [this] { file("/style.css", "text/css"); });
   server.on("/midi-file.js", HTTP_GET, [this] { file("/midi-file.js", "application/javascript"); });
   server.on("/library.js", HTTP_GET, [this] { file("/library.js", "application/javascript"); });
@@ -162,6 +170,8 @@ void TrainerWebServer::begin(bool filesystemReady) {
   server.on("/piano-credits.txt", HTTP_GET,
             [this] { file("/piano-credits.txt", "text/plain; charset=utf-8"); });
   server.on("/app.js", HTTP_GET, [this] { file("/app.js", "application/javascript"); });
+  server.on("/maintenance.js", HTTP_GET,
+            [this] { file("/maintenance.js", "application/javascript"); });
   server.on("/i18n.js", HTTP_GET, [this] { file("/i18n.js", "application/javascript"); });
   server.on("/api/training", HTTP_GET, [this] {
     if (auth()) trainingStatus();

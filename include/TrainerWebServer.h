@@ -18,6 +18,15 @@ class TrainerWebServer {
   RemoteLibrary library;
   void libraryRoutes();
   void lessonRoutes();
+  void maintenanceRoutes();
+  void recoveryPage();
+  void updateUpload();
+  void abortUpdate();
+  bool updateSeen = false, updateAuthorized = false, updateStarted = false, updateComplete = false,
+       updateFilesystem = false;
+  uint8_t updateHeader[256]{};
+  size_t updateHeaderSize = 0, updateExpected = 0, updateReceived = 0;
+  String updateError;
   void recordCompletedLesson();
   void trainingSnapshot(JsonObject object);
   int activeLesson = -1;

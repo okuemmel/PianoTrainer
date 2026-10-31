@@ -7,3 +7,5 @@ Never log WLAN passwords or return credentials through HTTP. Device access passw
 Use nonblocking millis-based state machines for Wi-Fi and animations. No external web assets.
 After changes run `pio test -e native`, `pio run -e c3_supermini`, and `pio run -e c3_supermini -t buildfs` when applicable.
 Document hardware tests separately from host/build checks. Do not claim physical tests without hardware.
+
+Maintain CHANGELOG.md automatically as part of every user-visible change. Record the current AppInfo version, date, and a clear description of the change before committing; include the changelog in the same commit. The user should not have to request changelog maintenance again. Use tools/update_changelog.py --message-file PATH when helpful, and keep historical entries intact. Do not install hooks that amend commits or leave the changelog staged after the commit.

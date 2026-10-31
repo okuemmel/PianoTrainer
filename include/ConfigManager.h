@@ -27,7 +27,10 @@ class ConfigManager {
   bool reset();
   static void encode(JsonObject obj, const LedConfig& c);
   static bool decode(JsonObjectConst obj, LedConfig& c, String& error);
+  void backup(JsonObject object, bool internal = false) const;
+  bool restore(JsonDocument& document, String& error);
 
  private:
   Preferences prefs;
+  bool applyProfile(JsonDocument& document, bool persist, bool internal, String& error);
 };

@@ -1,4 +1,4 @@
-"""Prepare local assets before PlatformIO builds or uploads LittleFS."""
+"""Prepare local compressed catalogs before PlatformIO builds LittleFS."""
 import runpy
 from pathlib import Path
 

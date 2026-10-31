@@ -9,7 +9,8 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
 | `pio test -e native` | 20 von 20 Tests bestanden |
-| `npm test` | 58 von 58 Browser-/MIDI-/Sprachtests bestanden |
+| `npm test` | 63 von 63 Browser-/MIDI-/Sprach-/Wartungstests bestanden |
+| `python3 -m unittest discover -s test -p 'test_tools.py'` | 3 von 3 Werkzeugtests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -17,8 +18,8 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 
 Speicherbelegung laut finalem Linkergebnis:
 
-- Statischer RAM: **50.796 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.166.476 / 1.572.864 Bytes (74,2 %)**.
+- Statischer RAM: **51.276 / 327.680 Bytes (15,6 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
+- Anwendung im Flash: **1.183.440 / 1.572.864 Bytes (75,2 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -32,6 +33,20 @@ C++: Standardkonfiguration, erlaubte/gesperrte GPIOs, Bereichsgrenzen, unzuläss
 DOM: 49 virtuelle Tasten, 128 Zuordnungen, GPIO-Auswahl, geordnete mehrstimmige Note-On/Off-Ereignisse, Freigabe bei Fokusverlust und Seitenwechsel, typisierte Konfigurationsdaten samt Schreibzugriffsheader, WLAN-Auswahl und Passwortlöschung im Formular. Ein SSID-Name mit HTML-Zeichen wird als Text dargestellt.
 
 Die DOM-Tests verwenden jsdom und simulierte API-Antworten. Sie bestätigen weder die reale Firmware-HTTP-Authentifizierung noch die visuelle Darstellung auf iPad/Safari. Ein sichtbarer Browserlauf war hier mangels Browser-Ausführungswerkzeug nicht möglich.
+
+## Update, Backup/Restore und Changelog · Firmware 1.11.0
+
+20 native Tests, 63 Node-Tests und 3 Python-Werkzeugtests bestanden. Firmware- und LittleFS-Build, Format- und Syntaxprüfungen sind erfolgreich. Neue Node-Prüfungen decken Paketformat, C3-Ziel, Firmware-/Webart, Größenlimits, Schema, Prüfsummenformat und abgeschnittene Pakete ab. Der Uploadtest bestätigt den Schreibzugriffsheader, Multipart-Datei, 99 % vor Gerätebestätigung und Fehler bei unterbrochenem Upload. DOM-Prüfungen bestätigen Backupdownload, Bestätigung vor Wiederherstellung, Restore-Anfrage, Ablehnung eines falschen Chips und den Übergang von 99 % auf 100 % erst nach bestätigtem Erfolg. Python prüft Paketinhalt/Länge/MD5 auch nach geändertem Image sowie Initialisierung und versionierte, idempotente Changelog-Einträge. Die erzeugten Pakete wurden zusätzlich bytegenau mit den aktuellen Firmware-/LittleFS-Images verglichen.
+
+Die neue Firmware wurde per USB übertragen und per Flash-Hash verifiziert. Am echten C3 wurden Backups mit falschem Schema, ungültiger LED-Konfiguration und unzulässigem Fortschritt abgelehnt; nach jedem Versuch blieb das exportierte Backup unverändert. Anschließend wurde genau dasselbe Backup wiederhergestellt und der Neustart abgewartet. LED-/Tastaturkonfiguration, alle 20 Lektionsergebnisse und die öffentlich abrufbaren Nextcloud-Einstellungen stimmten danach mit dem Ausgangszustand überein. WLAN und Webanmeldung blieben nutzbar. Das Backup enthält keine Passwortfelder. Dies prüft auch die Übernahme der bisherigen getrennten NVS-Datensätze in das gemeinsame Profil.
+
+Ebenfalls am Gerät abgelehnt: Updatepaket für ESP32-S3, Paket mit falscher MD5-Prüfsumme und Firmwareinhalt mit falscher C3-Kennung. Nach jedem Versuch waren API und unverändertes Backup verfügbar. Ein erster großer Firmwareupload scheiterte an einer Netzwerk-Schreibzeitüberschreitung; die bisherige Firmware blieb erreichbar. Ein Stromausfalltest und eine visuelle Safari-Prüfung wurden nicht durchgeführt.
+
+Der anschließende vollständige Firmware-OTA-Durchlauf war erfolgreich: 1.230.400 Paketbytes, Übertragung plus Neustart und Vergleich nach etwa 53 Sekunden. Einstellungen und Lernfortschritt blieben identisch. Der Web-OTA-Versuch wurde durch eine weitere Netzwerkunterbrechung abgebrochen; anschließend ließ sich LittleFS nicht mehr einbinden. Die Webdateien wurden über USB neu übertragen und per Flash-Hash verifiziert. Das anschließende USB-Startlog bestätigte `LittleFS bereit.` und sämtliche aktuellen Dateien einschließlich `maintenance.js`. Die neu ergänzte zweisprachige Recovery-Seite liegt im Firmware-Flash und benötigt keine Webdateien. Ein erfolgreicher vollständiger Web-OTA-Durchlauf und die Recovery-Übertragung über WLAN sind damit noch nicht bestätigt. Spätere serielle Logs zeigten wiederholte Router-Anmeldefehler und den korrekt gestarteten Setup-AP; dies wurde nicht durch Änderungen an den WLAN-Zugangsdaten gelöst oder überdeckt.
+
+Nach der USB-Wiederherstellung war der Trainer wieder mit dem Router verbunden. Die Recovery-Seite wurde vollständig über die Geräte-API ausgeliefert und ihr Inhalt geprüft. Ein zusätzlicher DOM-Test der eingebetteten Seite bestätigt die Ablehnung eines Firmwarepakets auf der Web-Recovery-Seite sowie den Fortschritt bis 99 % und 100 % erst nach Gerätebestätigung.
+
+Der Release-Bauer wurde auf aktuelle Image-/Paketübereinstimmung, SHA-256-Prüfsummen, Inhalt des USB-ZIPs und Ablehnung veralteter Pakete geprüft. Das USB-ZIP enthält ausschließlich die fünf erforderlichen Images und eine Anleitung, keine NVS-Daten oder Nutzersicherungen. Version 1.11.0 wird wegen der genannten Web-OTA-Einschränkung als Vorabrelease veröffentlicht.
 
 ## Deutsch und Englisch · Firmware 1.10.0
 

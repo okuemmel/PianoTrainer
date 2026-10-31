@@ -73,6 +73,7 @@ test("German and English catalogs cover static UI, lesson text and preset titles
     "midi-player.js",
     "piano-audio.js",
     "library.js",
+    "maintenance.js",
   ]) {
     const source = fs.readFileSync("data/" + file, "utf8");
     for (const match of source.matchAll(/"(?:[^"\\]|\\.)*"/g)) {

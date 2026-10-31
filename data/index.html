@@ -11,6 +11,7 @@
     <script defer src="/library.js"></script>
     <script defer src="/piano-audio.js"></script>
     <script defer src="/midi-player.js"></script>
+    <script defer src="/maintenance.js"></script>
     <script defer src="/app.js"></script>
   </head>
   <body>
@@ -874,6 +875,64 @@
         <section id="system" class="page" hidden>
           <p class="eyebrow">GERÄT</p>
           <h1>Systeminformationen</h1>
+          <article>
+            <h2>Update, Backup &amp; Restore</h2>
+            <p class="hint">
+              Backup sichert LED-/Tastatureinstellungen, Hostnamen,
+              Nextcloud-Konfiguration und Lernfortschritt. WLAN und Passwörter
+              bleiben auf dem Gerät. Bei einem anderen Nextcloud-Konto das
+              App-Passwort neu eingeben.
+            </p>
+            <div class="actions">
+              <button id="downloadBackup" type="button" class="secondary">
+                Backup herunterladen
+              </button>
+            </div>
+            <form id="restoreForm">
+              <label
+                >Backup-Datei (.json)<input
+                  id="backupFile"
+                  type="file"
+                  accept=".json,application/json"
+                  required
+              /></label>
+              <button>Backup wiederherstellen &amp; neu starten</button>
+            </form>
+            <hr />
+            <form id="updateForm">
+              <label
+                >Updatepaket (.ptupdate)<input
+                  id="updateFile"
+                  type="file"
+                  accept=".ptupdate"
+                  required
+              /></label>
+              <p class="hint">
+                Zuerst firmware.ptupdate, danach littlefs.ptupdate aus derselben
+                Version übertragen. Pakete werden beim PlatformIO-Build erzeugt.
+                Während der Übertragung die Stromversorgung verbunden lassen.
+                Ein unterbrochenes Webupdate kann eine Wiederherstellung über
+                USB erfordern.
+              </p>
+              <button>Update übertragen</button>
+            </form>
+            <progress
+              id="maintenanceProgress"
+              max="100"
+              value="0"
+              hidden
+              aria-label="Übertragungsfortschritt"
+            ></progress>
+            <p id="maintenanceStatus" role="status" aria-live="polite"></p>
+            <button
+              id="maintenanceReload"
+              type="button"
+              class="secondary"
+              hidden
+            >
+              Seite nach Neustart neu laden
+            </button>
+          </article>
           <article>
             <dl id="systemInfo"></dl>
             <p class="hint">
