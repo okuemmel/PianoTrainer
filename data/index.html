@@ -281,8 +281,8 @@
               ><span>Timing Ø <b id="trainingTiming">—</b></span>
             </div>
             <label class="check-option"
-              ><input id="showScore" type="checkbox" /> Noten anzeigen (mit
-              Vorschau)</label
+              ><input id="showScore" type="checkbox" /> Noten anzeigen · Übung
+              &amp; Player</label
             >
             <div id="scorePanel" hidden>
               <label class="check-option"
@@ -801,6 +801,15 @@
           <article>
             <dl id="systemInfo"></dl>
             <p class="hint">
+              <a
+                href="https://github.com/okuemmel/PianoTrainer"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Projekt auf GitHub ↗</a
+              >
+              · Vibe coded mit KI-Unterstützung
+            </p>
+            <p class="hint">
               Klavierklang: FluidR3 / MIDI.js Soundfonts ·
               <a href="/piano-credits.txt">Quelle und Lizenz</a>
             </p>
@@ -839,7 +848,21 @@
             </p>
           </article>
         </section>
-        <footer>MIDI LED Piano Trainer <span>01 / C3 SUPERMINI</span></footer>
+        <footer>
+          <span
+            >MIDI LED Piano Trainer ·
+            <span id="appVersion">Version wird geladen …</span></span
+          >
+          <span
+            >Urheber: <span id="appAuthor">okuemmel</span> ·
+            <a
+              href="https://github.com/okuemmel/PianoTrainer"
+              target="_blank"
+              rel="noopener noreferrer"
+              >GitHub ↗</a
+            >
+          </span>
+        </footer>
       </main>
     </div>
     <div id="toast" role="status" aria-live="polite" hidden></div>

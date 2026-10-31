@@ -204,7 +204,8 @@
       }
       const held = new Map(),
         notes = [];
-      const origin = performance.find((e) => e.on)?.time;
+      const first = performance.find((e) => e.on);
+      const origin = first?.time;
       if (origin === undefined)
         throw Error("Keine spielbaren Noten im gewählten Kanal gefunden.");
       const end = Math.max(origin, ...performance.slice(-1).map((e) => e.time));
@@ -215,6 +216,7 @@
             note: event.note,
             velocity: event.velocity,
             time: event.time - origin,
+            beat: (event.tick - first.tick) / division,
             duration: null,
           };
           if (!held.has(key)) held.set(key, []);

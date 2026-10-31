@@ -1043,3 +1043,89 @@ test("virtual keys and MIDI listening use local piano samples without downloadin
   assert.equal(s.calls.filter((c) => c.url === "/piano-samples.bin").length, 1);
   s.d.querySelector("#stopMidi").click();
 });
+
+test("footer uses the running firmware version and author and exposes the project link", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const live = await (await s.w.fetch("/api/status", {})).json();
+  s.w.receiveNetworkSnapshot({
+    ...live,
+    firmware: "1.8.0",
+    author: "okuemmel",
+  });
+  assert.equal(s.d.querySelector("#appVersion").textContent, "v1.8.0");
+  assert.equal(s.d.querySelector("#appAuthor").textContent, "okuemmel");
+  assert.equal(
+    s.d.querySelector("footer a").href,
+    "https://github.com/okuemmel/PianoTrainer",
+  );
+  assert.match(s.d.querySelector("#systemInfo").textContent, /Urheberokuemmel/);
+});
+
+test("playback notation follows its own timeline, survives training status updates and returns to the lesson after stop", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.d.querySelector("#showScore").click();
+  s.deliverTraining({
+    state: "paused",
+    total: 3,
+    upcoming: [{ index: 0, notes: [48], ticks: 480 }],
+  });
+  const first = {
+    state: "playing",
+    position: 0,
+    duration: 5,
+    notes: [],
+    scoreTotal: 3,
+    upcoming: [
+      { index: 0, notes: [60, 64], ticks: 480 },
+      { index: 1, notes: [67], ticks: 240 },
+      { index: 2, notes: [72], ticks: 0 },
+    ],
+  };
+  s.w.receivePlaybackSnapshot(first);
+  assert.equal(s.d.querySelector(".score-step.current").dataset.step, "0");
+  assert.ok(s.d.querySelector('.score-note[data-note="60"]'));
+  assert.match(
+    s.d.querySelector("#scoreSummary").textContent,
+    /MIDI-Player.*Einsatz 1 von 3/,
+  );
+  const svg = s.d.querySelector("#scoreViewport svg");
+  s.deliverTraining({
+    state: "paused",
+    upcoming: [{ index: 0, notes: [48], ticks: 480 }],
+  });
+  assert.equal(s.d.querySelector("#scoreViewport svg"), svg);
+  s.w.receivePlaybackSnapshot({
+    ...first,
+    position: 0.6,
+    upcoming: first.upcoming.slice(1),
+  });
+  assert.equal(s.d.querySelector(".score-step.current").dataset.step, "1");
+  s.w.receivePlaybackSnapshot({
+    ...first,
+    state: "paused",
+    position: 0.6,
+    upcoming: first.upcoming.slice(1),
+  });
+  assert.match(s.d.querySelector("#scoreSummary").textContent, /pausiert/);
+  assert.equal(s.d.querySelector(".score-step.current").dataset.step, "1");
+  s.w.receivePlaybackSnapshot({
+    ...first,
+    state: "completed",
+    position: 5,
+    upcoming: [],
+  });
+  assert.equal(s.d.querySelector("#scoreViewport svg"), null);
+  assert.match(
+    s.d.querySelector("#scoreSummary").textContent,
+    /MIDI-Wiedergabe abgeschlossen/,
+  );
+  s.w.receivePlaybackSnapshot({
+    state: "stopped",
+    position: 0,
+    duration: 5,
+    notes: [],
+  });
+  assert.ok(s.d.querySelector('.score-note[data-note="48"]'));
+});

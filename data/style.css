@@ -340,6 +340,10 @@ footer {
   display: flex;
   justify-content: space-between;
   gap: 15px;
+  flex-wrap: wrap;
+}
+footer a {
+  color: var(--accent);
 }
 #toast {
   position: fixed;

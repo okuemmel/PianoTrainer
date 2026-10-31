@@ -1,6 +1,31 @@
 /* Local sampled piano with synthesis fallback; no training MIDI events. */
 (function (root) {
   "use strict";
+  function scoreSteps(performance) {
+    const groups = [];
+    const bpm = performance.bpm || 120;
+    for (const note of [...performance.notes].sort((a, b) => a.time - b.time)) {
+      let group = groups[groups.length - 1];
+      if (!group || group.time !== note.time) {
+        group = {
+          index: groups.length,
+          time: note.time,
+          beat: note.beat ?? (note.time * bpm) / 60,
+          notes: [],
+        };
+        groups.push(group);
+      }
+      if (!group.notes.includes(note.note)) group.notes.push(note.note);
+    }
+    for (let i = 0; i < groups.length; i++) {
+      groups[i].notes.sort((a, b) => a - b);
+      groups[i].ticks =
+        i + 1 < groups.length
+          ? Math.max(1, Math.round((groups[i + 1].beat - groups[i].beat) * 480))
+          : 0;
+    }
+    return groups;
+  }
   class Player {
     constructor(
       notify = () => {},
@@ -21,6 +46,7 @@
       this.samples = null;
       this.sampleError = "";
       this.preparing = null;
+      this.scoreSteps = [];
     }
     unlock() {
       this.Audio ||= root.AudioContext || root.webkitAudioContext;
@@ -59,8 +85,10 @@
         );
     }
     play(performance, offset = 0) {
+      const changed = this.performance !== performance;
       this.stop();
       this.performance = performance;
+      if (changed) this.scoreSteps = scoreSteps(performance);
       this.position = offset;
       this.next = 0;
       if (!this.context || this.context.state === "suspended")
@@ -86,6 +114,7 @@
           state: this.state,
           position: this.position,
           duration: performance.duration,
+          ...this.scoreStatus(this.position),
           sound: this.samples
             ? "Klavier-Samples"
             : "Synthesizer" +
@@ -102,6 +131,25 @@
       tick();
       if (this.state === "playing")
         this.timer = this.timers.setInterval(tick, 25);
+    }
+    scoreStatus(position) {
+      let low = 0,
+        high = this.scoreSteps.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (this.scoreSteps[middle].time <= position) low = middle + 1;
+        else high = middle;
+      }
+      return {
+        scoreTotal: this.scoreSteps.length,
+        upcoming:
+          this.state === "completed"
+            ? []
+            : this.scoreSteps.slice(
+                Math.max(0, low - 1),
+                Math.max(0, low - 1) + 6,
+              ),
+      };
     }
     schedule(note, elapsed) {
       if (this.voices.size >= 32)
@@ -186,6 +234,8 @@
         duration: this.performance?.duration || 0,
         notes: [],
         reason,
+        upcoming: [],
+        scoreTotal: 0,
       });
     }
     pause(reason = "") {
@@ -200,13 +250,14 @@
         duration: this.performance.duration,
         notes: [],
         reason,
+        ...this.scoreStatus(position),
       });
     }
     resume() {
       if (this.state === "paused") this.play(this.performance, this.position);
     }
   }
-  root.MidiPlayer = { Player };
+  root.MidiPlayer = { Player, scoreSteps };
   if (typeof module !== "undefined" && module.exports)
-    module.exports = { Player };
+    module.exports = { Player, scoreSteps };
 })(typeof window !== "undefined" ? window : globalThis);

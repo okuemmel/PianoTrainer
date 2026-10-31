@@ -14,6 +14,7 @@ let remoteMidi = null;
 const libraryClient = new window.MidiLibrary.Client(api);
 const midiPlayer = new window.MidiPlayer.Player(renderPlayback);
 let playbackName = "";
+let playbackView = null;
 let playbackLedActive = false,
   playbackLedKey = "",
   playbackLedSentAt = 0,
@@ -513,6 +514,10 @@ $("#reset").onclick = () => {
     });
 };
 function renderStatus(s) {
+  $("#appVersion").textContent = s.firmware
+    ? "v" + s.firmware
+    : "Version unbekannt";
+  $("#appAuthor").textContent = s.author || "okuemmel";
   renderNetwork(s);
   if (s.training) renderTraining(s.training);
   $("#connection").textContent = s.connected
@@ -529,6 +534,7 @@ function renderStatus(s) {
   const info = {
     Board: s.board,
     Firmware: s.firmware,
+    Urheber: s.author || "okuemmel",
     Betriebszeit: Math.floor(s.uptime / 60) + " min " + (s.uptime % 60) + " s",
     "Freier Heap": Math.round(s.heap / 1024) + " KiB",
     Flash: Math.round(s.flash / 1048576) + " MiB",
@@ -987,10 +993,24 @@ function renderScore() {
   const enabled = $("#showScore").checked;
   $("#scorePanel").hidden = !enabled;
   if (!enabled) return;
-  const t = trainingView;
-  const steps = t && t.state !== "idle" ? (t.upcoming || []).slice(0, 6) : [];
+  const playback = ["playing", "paused", "completed"].includes(
+    playbackView?.state,
+  );
+  const t = playback
+    ? { ...playbackView, total: playbackView.scoreTotal, source: "playback" }
+    : trainingView;
+  const steps =
+    t && !["idle", "completed"].includes(t.state)
+      ? (t.upcoming || []).slice(0, 6)
+      : [];
   const labels = $("#scoreLabels").checked;
-  const cacheKey = JSON.stringify([t?.state, t?.total, steps, labels]);
+  const cacheKey = JSON.stringify([
+    t?.source,
+    t?.state,
+    t?.total,
+    steps,
+    labels,
+  ]);
   if (cacheKey === lastScoreKey) return;
   lastScoreKey = cacheKey;
   const viewport = $("#scoreViewport");
@@ -998,8 +1018,10 @@ function renderScore() {
   if (!steps.length) {
     $("#scoreSummary").textContent =
       t?.state === "completed"
-        ? "Übung abgeschlossen."
-        : "Starte eine Übung, um die Noten zu sehen.";
+        ? playback
+          ? "MIDI-Wiedergabe abgeschlossen."
+          : "Übung abgeschlossen."
+        : "Starte eine Übung oder MIDI-Wiedergabe, um die Noten zu sehen.";
     return;
   }
   const ns = "http://www.w3.org/2000/svg";
@@ -1174,16 +1196,18 @@ function renderScore() {
       element(
         "text",
         { x, y: 306, "text-anchor": "middle", class: "score-caption" },
-        (step.ticks / 480).toLocaleString("de-DE", {
-          maximumFractionDigits: 3,
-        }) + " ♩ Abstand",
+        step.ticks === 0
+          ? "Ende"
+          : (step.ticks / 480).toLocaleString("de-DE", {
+              maximumFractionDigits: 3,
+            }) + " ♩ Abstand",
       ),
     );
     svg.append(group);
   });
   viewport.append(svg);
   $("#scoreSummary").textContent =
-    "Einsatz " +
+    (playback ? "MIDI-Player · Einsatz " : "Einsatz ") +
     (steps[0].index + 1) +
     " von " +
     t.total +
@@ -1477,6 +1501,7 @@ $("#cloudSettingsForm").onsubmit = (event) => {
 };
 
 function renderPlayback(view) {
+  playbackView = view;
   playbackLeds(view);
   const format = (seconds) =>
     Math.floor(seconds / 60) +
@@ -1503,6 +1528,7 @@ function renderPlayback(view) {
     format(view.duration) +
     (view.reason ? " · " + view.reason : "") +
     (view.sound ? " · " + view.sound : "");
+  renderScore();
 }
 async function playSelectedMidi() {
   if (document.hidden || $("#training").hidden) return;
@@ -1516,6 +1542,7 @@ async function playSelectedMidi() {
   playbackName = file.name;
   if (trainingRunning()) await trainingCommand({ command: "pause" });
   if (document.hidden || $("#training").hidden) return;
+  $("#showScore").checked = true;
   midiPlayer.play(performance);
 }
 $("#listenMidi").onclick = () => {

@@ -1,6 +1,8 @@
 #include "TrainerWebServer.h"
 
 #include <LittleFS.h>
+
+#include "AppInfo.h"
 bool TrainerWebServer::auth(bool mutation) {
   server.sendHeader("Cache-Control", "no-store");
   server.sendHeader("X-Content-Type-Options", "nosniff");
@@ -65,7 +67,9 @@ void TrainerWebServer::status() {
   d["flash"] = ESP.getFlashChipSize();
   d["mode"] = leds.mode;
   d["filesystem"] = fsReady;
-  d["firmware"] = "1.7.1";
+  d["firmware"] = AppInfo::Version;
+  d["author"] = AppInfo::Author;
+  d["repository"] = AppInfo::Repository;
   d["keys"] = config.led.keys;
   d["baseNote"] = config.led.baseNote;
   d["channel"] = config.led.channel;

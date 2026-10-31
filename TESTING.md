@@ -9,7 +9,7 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
 | `pio test -e native` | 18 von 18 Tests bestanden |
-| `npm test` | 46 von 46 Browser-/MIDI-Tests bestanden |
+| `npm test` | 49 von 49 Browser-/MIDI-Tests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -18,7 +18,7 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 Speicherbelegung laut finalem Linkergebnis:
 
 - Statischer RAM: **50.700 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.147.640 / 1.572.864 Bytes (73,0 %)**.
+- Anwendung im Flash: **1.147.826 / 1.572.864 Bytes (73,0 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -214,3 +214,14 @@ Bestanden: 18 native und 46 Node-Tests, darunter Paketgrenzen, Wiederholung nach
 Die vorherige 90-Sekunden-USB-Aufnahme zeigte die anfängliche USB-Reset-/Startsequenz und danach keine weiteren protokollierten Neustarts oder HTTP-/WLAN-Fehler. Die parallel abgefragte Gerätelaufzeit stieg durchgehend, die WLAN-Signalstärke lag etwa bei −58 bis −61 dBm. Die Stichproben zeigten keine aktive Wiedergabe-LED-Vorschau; damit wurde kein Abbruch während einer aktiven Wiedergabe erfasst. Der Nutzer meldete anschließend, dass es beim erneuten Versuch zu funktionieren scheint. Eine eindeutige Ursache ist daraus nicht bewiesen.
 
 Firmware 1.7.1 und das neue LittleFS-Image wurden per USB übertragen; beide Flash-Hashes wurden verifiziert. Danach wurde `piano-samples.bin` tatsächlich über die geschützte Geräte-HTTP-Route geladen: 361.613 Bytes, bytegleich mit der lokalen Datei und identischer SHA-256. Die Statusabfrage meldete Firmware 1.7.1 und bereites Dateisystem. Eine parallel zum Klangpaket laufende Statusabfrage lief zunächst in ein Vier-Sekunden-Zeitlimit; nach Abschluss des Downloads antwortete sie wieder erfolgreich. Der synchrone Webserver kann während dieses einmaligen größeren Transfers andere Anfragen verzögern. Es wurde keine hörbare Ausgabe auf Safari geprüft.
+
+
+## Projektangaben und Noten beim Anhören · Firmware 1.8.0
+
+Die Fußzeile und Systeminformationen zeigen die Firmware-Version und Urheberangabe; GitHub ist direkt verlinkt. Gemeinsame Metadaten liegen in `include/AppInfo.h`; auch der ausgehende HTTP-User-Agent verwendet diese Version. Der API-Status liefert zusätzlich `author` und `repository`.
+
+Für die Wiedergabe behält der MIDI-Parser die ursprüngliche Viertelschlag-Position jedes Noteneinsatzes bei. Der Player gruppiert gleichzeitige Tonhöhen und berechnet einmalig die Einsätze. Ein binär gesuchtes Fenster zeigt höchstens sechs Gruppen. Audio-Vorplanung verändert die angezeigte aktuelle Note nicht vorzeitig; die Vorschau nutzt die Playerposition. Pausierter Trainingsstatus überschreibt die Wiedergabenoten nicht. Pause hält die Position, Stopp stellt die Übungsvorschau wieder her; das Dateiende leert die Vorschau mit Abschlussmeldung. Noten werden beim Start einer Dateiwiedergabe automatisch sichtbar und bleiben ausblendbar.
+
+Bestanden: **18 native und 49 Node-Tests**, einschließlich Tempoänderungen mit gleichbleibendem Viertelabstand, Akkordgruppierung/Duplikaten, begrenztem Vorschaufenster bei fortgeschrittener Playerposition, Playerpause und Abschluss sowie Wechsel zwischen Trainings- und Player-Snapshots. Die bereitgestellte Metallica-Datei wurde zusätzlich vollständig durchlaufen: 13.060 Noten, 3.931 Einsatzgruppen, 473,18 Sekunden; bei Sekunde 120 erscheint das Fenster 1070–1075. Die Gruppierung benötigte auf dem Entwicklungsrechner rund 10 ms; daraus folgt keine Laufzeitzusage für Mobilgeräte. Footer/Versionsanzeige und GitHub-Ziel wurden im DOM geprüft. Sichtbare Darstellung und Synchronität am iPhone/iPad sind weiter manuell zu prüfen.
+
+Firmware 1.8.0 und LittleFS wurden nach einem zunächst kurzzeitig nicht verfügbaren USB-Port erfolgreich übertragen und jeweils per Flash-Hash geprüft. Anschließend bestätigte die tatsächliche Status-API `firmware: 1.8.0`, `author: okuemmel`, die korrekte Repository-Adresse und bereites Dateisystem. Die über HTTP abgerufene Startseite ist bytegleich mit `data/index.html`. Eine zunächst fehlgeschlagene Verbindung zur Startseite war beim direkten Wiederholungsversuch erfolgreich.

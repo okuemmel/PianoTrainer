@@ -215,8 +215,8 @@ test("listening preserves note lengths and tempo changes without the 128-step tr
   ]);
   const result = parse(data, { performanceOnly: true });
   assert.deepEqual(result.notes, [
-    { note: 60, velocity: 100, time: 0, duration: 0.5 },
-    { note: 62, velocity: 90, time: 0.5, duration: 1 },
+    { note: 60, velocity: 100, time: 0, beat: 0, duration: 0.5 },
+    { note: 62, velocity: 90, time: 0.5, beat: 1, duration: 1 },
   ]);
   assert.equal(result.duration, 1.5);
   const track = [];

@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { Player } = require("../data/midi-player.js");
+const { Player, scoreSteps } = require("../data/midi-player.js");
 test("MIDI player schedules exact pitch and release, supports pause/resume and cancels all voices", async () => {
   let tick;
   const oscillators = [],
@@ -65,6 +65,7 @@ test("MIDI player schedules exact pitch and release, supports pause/resume and c
   assert.equal(oscillators[0].starts[0], 0);
   assert.equal(oscillators[0].stops[0], 0.75);
   assert.deepEqual(notifications.at(-1).notes, [{ note: 69, velocity: 127 }]);
+  assert.equal(notifications.at(-1).upcoming[0].index, 0);
   player.context.currentTime = 0.4;
   tick();
   assert.deepEqual(notifications.at(-1).notes, [{ note: 69, velocity: 127 }]);
@@ -72,6 +73,7 @@ test("MIDI player schedules exact pitch and release, supports pause/resume and c
   player.pause();
   assert.equal(player.state, "paused");
   assert.equal(player.position, 0.25);
+  assert.equal(notifications.at(-1).upcoming[0].index, 0);
   assert.equal(player.voices.size, 0);
   assert.deepEqual(notifications.at(-1).notes, []);
   player.context.currentTime = 2;
@@ -79,6 +81,7 @@ test("MIDI player schedules exact pitch and release, supports pause/resume and c
   assert.equal(player.state, "playing");
   player.context.currentTime = 2.35;
   tick();
+  assert.equal(notifications.at(-1).upcoming[0].index, 1);
   assert.ok(
     oscillators.some((o) => Math.abs(o.frequency.value - 523.25113) < 0.01),
   );
@@ -92,4 +95,38 @@ test("MIDI player schedules exact pitch and release, supports pause/resume and c
   assert.equal(player.voices.size, 0);
   assert.equal(tick, null);
   assert.equal(notifications.at(-1).position, 120);
+  assert.deepEqual(notifications.at(-1).upcoming, []);
+});
+
+test("playback score groups chords and keeps beat distances through tempo changes with a bounded rolling window", () => {
+  const performance = {
+    bpm: 120,
+    notes: [
+      { note: 67, time: 0, beat: 0 },
+      { note: 60, time: 0, beat: 0 },
+      { note: 60, time: 0, beat: 0 },
+      { note: 62, time: 0.5, beat: 1 },
+      { note: 64, time: 1.5, beat: 2 },
+    ],
+  };
+  const groups = scoreSteps(performance);
+  assert.deepEqual(groups[0].notes, [60, 67]);
+  assert.deepEqual(
+    groups.map((s) => s.ticks),
+    [480, 480, 0],
+  );
+  const player = new Player();
+  player.scoreSteps = scoreSteps({
+    notes: Array.from({ length: 20 }, (_, i) => ({
+      note: 60,
+      time: i,
+      beat: i,
+    })),
+  });
+  player.state = "playing";
+  assert.deepEqual(
+    player.scoreStatus(12.4).upcoming.map((s) => s.index),
+    [12, 13, 14, 15, 16, 17],
+  );
+  assert.equal(player.scoreStatus(19.1).upcoming.length, 1);
 });

@@ -48,3 +48,6 @@ Die Anbindung wurde auf dem vorhandenen C3 geprüft; ein S3 ist für diese Impor
 - [x] Handy-/Tablet-Layout: Navigation standardmäßig eingeklappt, aufklappbare Optionen und Importbereiche.
 
 - [x] Kompakten lokalen Sample-Klavierklang für Player und virtuelle Tasten ergänzen (Firmware 1.7.1), mit Synthesizer als Rückfall.
+
+- [x] GitHub-Link, Urheberangabe und aktuelle Firmware-Version in Fußzeile/Systeminformationen (1.8.0).
+- [x] Mitlaufende, ausblendbare Notenvorschau beim Anhören vollständiger MIDI-Dateien.

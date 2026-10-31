@@ -6,6 +6,8 @@
 
 #include <utility>
 
+#include "AppInfo.h"
+
 extern const uint8_t trustBundle[] asm("_binary_x509_crt_bundle_start");
 
 class RemoteLibrary::Sink : public Stream {
@@ -118,7 +120,7 @@ void RemoteLibrary::perform() {
     snprintf(failure, sizeof(failure), "Remote-Adresse konnte nicht geöffnet werden.");
     return;
   }
-  http.setUserAgent("PianoTrainer/1.7");
+  http.setUserAgent(String("PianoTrainer/") + AppInfo::Version);
   if (request.user.length()) http.setAuthorization(request.user.c_str(), request.password.c_str());
   int code;
   if (request.dav) {
