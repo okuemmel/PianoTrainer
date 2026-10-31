@@ -5,11 +5,14 @@ const { JSDOM } = require("jsdom");
 const html = fs.readFileSync("data/index.html", "utf8");
 const script = fs.readFileSync("data/app.js", "utf8");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
-async function setup() {
+async function setup(
+  library = { folder: "", user: "", hasPassword: false, hasCa: false },
+) {
   const dom = new JSDOM(html, {
     url: "http://192.168.4.1/",
     runScripts: "outside-only",
   });
+  dom.window.TextDecoder = TextDecoder;
   const calls = [];
   let leds = { count: 60, pin: 4, brightness: 25, frame: "000000".repeat(60) };
   let training = {
@@ -109,6 +112,18 @@ async function setup() {
     }
     if (url === "/api/midi") data = { ok: true, training, leds };
     if (url === "/api/led") data = { ok: true, training, leds };
+    if (url === "/api/library/config") {
+      if (body) {
+        library = {
+          folder: body.folder,
+          user: body.user,
+          hasPassword:
+            body.password === undefined ? library.hasPassword : !!body.password,
+          hasCa: body.ca === undefined ? library.hasCa : !!body.ca,
+        };
+        data = { ok: true };
+      } else data = { ...library };
+    }
     if (url === "/api/config") {
       if (body) {
         config = body;
@@ -127,9 +142,11 @@ async function setup() {
     return { ok: true, status: 200, json: async () => data };
   };
   dom.window.eval(fs.readFileSync("data/midi-file.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/library.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/midi-player.js", "utf8"));
   dom.window.eval(
     script +
-      "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus;",
+      "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus; window.receivePlaybackSnapshot = renderPlayback;",
   );
   await tick();
   await tick();
@@ -240,7 +257,7 @@ test("all tests produce expected LED commands and route navigation releases note
   s.w.location.hash = "config";
   s.w.dispatchEvent(new s.w.HashChangeEvent("hashchange"));
   await tick();
-  assert.equal(s.d.querySelector("#config").hidden, false);
+  assert.equal(s.d.querySelector("#control").hidden, false);
   assert.equal(s.d.querySelectorAll(".pressed").length, 0);
 });
 test("connected Wi-Fi shows a usable address and LED request feedback", async (t) => {
@@ -733,4 +750,159 @@ test("offline Wi-Fi hides stale router addresses while showing the setup IP", as
   assert.match(s.d.querySelector("#wifiApInfo").textContent, /192.168.4.1/);
   assert.equal(s.d.querySelector("#mdnsAddress").hidden, true);
   assert.equal(s.d.querySelector("#wifiAddress").hidden, true);
+});
+
+test("Nextcloud settings persist one fixed directory and clear entered credentials from the form", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  s.d.querySelector("#cloudFolder").value =
+    "https://cloud.example/remote.php/dav/files/user/My MIDI";
+  s.d.querySelector("#cloudUser").value = "user";
+  s.d.querySelector("#cloudPassword").value = "test-app-password";
+  s.d
+    .querySelector("#cloudSettingsForm")
+    .dispatchEvent(
+      new s.w.Event("submit", { bubbles: true, cancelable: true }),
+    );
+  await tick();
+  await tick();
+  const sent = s.calls.find((c) => c.url === "/api/library/config" && c.body);
+  assert.equal(
+    sent.body.folder,
+    "https://cloud.example/remote.php/dav/files/user/My%20MIDI/",
+  );
+  assert.equal(sent.body.password, "test-app-password");
+  assert.equal(s.d.querySelector("#cloudPassword").value, "");
+  assert.match(
+    s.d.querySelector("#cloudPasswordHint").textContent,
+    /gespeichert/,
+  );
+  assert.match(
+    s.d.querySelector("#cloudSettingsResult").textContent,
+    /Gespeichert/,
+  );
+});
+test("configured Nextcloud files load on training entry and use the shared MIDI importer", async (t) => {
+  const s = await setup({
+    folder: "https://cloud.example/dav/MIDI/",
+    user: "user",
+    hasPassword: true,
+    hasCa: false,
+  });
+  t.after(() => s.w.close());
+  const jobs = [];
+  s.w.MidiLibrary.Client.prototype.run = async function (request) {
+    jobs.push(request);
+    if (request.action === "list")
+      return new TextEncoder().encode(
+        '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/MIDI/Test%20%3Csong%3E.mid</d:href><d:propstat><d:prop><d:getcontentlength>35</d:getcontentlength></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+      );
+    return Uint8Array.from([
+      77, 84, 104, 100, 0, 0, 0, 6, 0, 0, 0, 1, 1, 224, 77, 84, 114, 107, 0, 0,
+      0, 13, 0, 144, 60, 100, 131, 96, 128, 60, 0, 0, 255, 47, 0,
+    ]);
+  };
+  s.w.location.hash = "training";
+  s.w.dispatchEvent(new s.w.HashChangeEvent("hashchange"));
+  await tick();
+  await tick();
+  assert.equal(jobs.filter((j) => j.action === "list").length, 1);
+  assert.match(s.d.querySelector("#cloudFiles").textContent, /Test <song>.mid/);
+  assert.equal(s.d.querySelector("#cloudFiles song"), null);
+  s.d.querySelector("#cloudFiles button").click();
+  await tick();
+  await tick();
+  assert.equal(jobs[1].name, "Test <song>.mid");
+  assert.equal(s.d.querySelector("#trainingPreset").value, "custom");
+  assert.match(
+    s.d.querySelector("#importResult").textContent,
+    /Test <song>.mid: 1 Einsätze/,
+  );
+  assert.equal(s.d.querySelector("#libraryCancel").hidden, true);
+});
+test("MIDIsss search renders escaped metadata and downloads using the selected numeric id", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const jobs = [];
+  s.w.MidiLibrary.Client.prototype.run = async function (request) {
+    jobs.push(request);
+    if (request.action === "search")
+      return new TextEncoder().encode(
+        JSON.stringify([
+          { id: 5, name: "<img src=x>", notes: "Piano", average_rating: 4.5 },
+        ]),
+      );
+    throw Error("Test-Datei fehlt");
+  };
+  s.d.querySelector("#midiSearch").value = "Metallica";
+  s.d
+    .querySelector("#midiSearchForm")
+    .dispatchEvent(
+      new s.w.Event("submit", { bubbles: true, cancelable: true }),
+    );
+  await tick();
+  await tick();
+  assert.equal(jobs[0].query, "Metallica");
+  assert.equal(s.d.querySelector("#searchFiles img"), null);
+  assert.match(s.d.querySelector("#searchFiles").textContent, /Bewertung: 4.5/);
+  s.d.querySelector("#searchFiles button").click();
+  await tick();
+  await tick();
+  assert.equal(jobs[1].id, 5);
+  assert.match(
+    s.d.querySelector("#libraryStatus").textContent,
+    /Test-Datei fehlt/,
+  );
+  assert.equal(s.d.querySelector("#midiSearchForm button").disabled, false);
+});
+
+test("listening coalesces duplicate pitches, releases LEDs on pause and never sends training attempts", async () => {
+  const { w, d, calls, dom } = await setup();
+  w.receivePlaybackSnapshot({
+    state: "playing",
+    position: 0,
+    duration: 5,
+    notes: [
+      { note: 60, velocity: 80 },
+      { note: 60, velocity: 100 },
+      { note: 64, velocity: 90 },
+    ],
+  });
+  await tick();
+  await tick();
+  const frames = () => calls.filter((c) => c.url === "/api/playback");
+  assert.deepEqual(frames().at(-1).body, {
+    active: true,
+    notes: [
+      { note: 60, velocity: 100 },
+      { note: 64, velocity: 90 },
+    ],
+  });
+  assert.equal(d.querySelector("#pauseMidi").hidden, false);
+  const before = frames().length;
+  w.receivePlaybackSnapshot({
+    state: "playing",
+    position: 0.1,
+    duration: 5,
+    notes: [
+      { note: 60, velocity: 100 },
+      { note: 64, velocity: 90 },
+    ],
+  });
+  await tick();
+  assert.equal(frames().length, before);
+  w.receivePlaybackSnapshot({
+    state: "paused",
+    position: 0.1,
+    duration: 5,
+    notes: [],
+  });
+  await tick();
+  await tick();
+  assert.deepEqual(frames().at(-1).body, { active: false });
+  assert.equal(
+    calls.some((c) => c.url === "/api/midi" && c.body?.type === "on"),
+    false,
+  );
+  dom.window.close();
 });

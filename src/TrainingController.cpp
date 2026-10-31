@@ -61,12 +61,14 @@ bool TrainingController::start(LearningMode mode, const TrainingSequence& sequen
     error = "Ungültige Übung, Tempo oder Zeitfenster.";
     return false;
   }
+  previewing = false;
   ownsLeds = true;
   errorAt = 0;
   render();
   return true;
 }
 void TrainingController::stop() {
+  previewing = false;
   exercise = "Freies Spiel";
   engine.stop();
   ownsLeds = false;
@@ -77,6 +79,7 @@ void TrainingController::pause() {
   render();
 }
 void TrainingController::resume() {
+  previewing = false;
   engine.resume(millis());
   ownsLeds = true;
   render();
@@ -86,6 +89,7 @@ void TrainingController::release() {
   if (ownsLeds) render();
 }
 void TrainingController::receive(const MidiEvent& event) {
+  if (previewing) return;
   if (event.note > 127 || event.velocity > 127 || !acceptsChannel(config, event.channel)) return;
   if (engine.state == TrainingState::Paused || engine.state == TrainingState::Completed) return;
   int errors = engine.wrong;
@@ -96,6 +100,10 @@ void TrainingController::receive(const MidiEvent& event) {
 }
 void TrainingController::render() {
   if (!ownsLeds) return;
+  if (previewing) {
+    leds.trainingFrame(previewHeld, {}, -1, false);
+    return;
+  }
   const bool pulse =
       engine.running() && engine.timed && engine.elapsed(millis()) % engine.beatMs() < 90;
   auto targets = engine.targets();
@@ -107,6 +115,10 @@ void TrainingController::render() {
 }
 void TrainingController::loop() {
   engine.tick(millis());
+  if (previewing) {
+    if (millis() - lastPreviewAt >= 3000) stopPreview();
+    return;
+  }
   if (!ownsLeds) return;
   const bool pulse =
       engine.running() && engine.timed && engine.elapsed(millis()) % engine.beatMs() < 90;
@@ -119,6 +131,7 @@ void TrainingController::loop() {
 void TrainingController::status(JsonObject o) const {
   const auto now = millis();
   o["exercise"] = exercise;
+  o["preview"] = previewing;
   o["mode"] = modeName(engine.mode);
   o["state"] = stateName(engine.state);
   o["feedback"] = feedbackName(engine.feedback);
@@ -156,6 +169,21 @@ void TrainingController::status(JsonObject o) const {
   auto targets = engine.targets();
   for (int n = 0; n < 128; ++n) {
     if (targets[n]) expected.add(n);
-    if (engine.held[n]) held.add(n);
+    if (previewing ? previewHeld[n] : engine.held[n]) held.add(n);
   }
+}
+
+void TrainingController::preview(const std::array<uint8_t, 128>& notes) {
+  if (engine.running()) engine.pause(millis());
+  previewHeld = notes;
+  previewing = true;
+  ownsLeds = true;
+  lastPreviewAt = millis();
+  render();
+}
+void TrainingController::stopPreview() {
+  if (!previewing) return;
+  previewing = false;
+  previewHeld.fill(0);
+  render();
 }

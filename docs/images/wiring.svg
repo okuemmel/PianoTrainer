@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 760" role="img" aria-labelledby="title desc">
+  <title id="title">ESP32-C3 SuperMini an WS2812B mit Pegelwandler</title>
+  <desc id="desc">GPIO 4 führt über den 5-Volt-Pegelwandler 74AHCT125 und 330 Ohm an DIN. Ein externes 5-Volt-Netzteil versorgt Streifen und Pegelwandler. Alle GND sind verbunden. Der ESP32 wird separat über USB versorgt.</desc>
+  <defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0 9 4.5 0 9Z" fill="#79ebc8"/></marker></defs>
+  <rect width="1440" height="760" rx="20" fill="#10151e"/>
+  <g font-family="system-ui,sans-serif" fill="#eaf0f4">
+    <text x="50" y="55" font-size="28" font-weight="700">Anschluss: ESP32-C3 → WS2812B</text>
+    <text x="50" y="87" font-size="15" fill="#a6b3c5">Funktionsschema — die Anschlüsse sind keine maßstabsgetreuen Pinpositionen.</text>
+    <g fill="#19212d" stroke="#44536a" stroke-width="2">
+      <rect x="80" y="170" width="300" height="290" rx="16"/>
+      <rect x="580" y="195" width="250" height="265" rx="16"/>
+      <rect x="1080" y="205" width="285" height="225" rx="16"/>
+      <rect x="1015" y="105" width="350" height="75" rx="12"/>
+      <rect x="80" y="525" width="300" height="70" rx="12"/>
+    </g>
+    <text x="105" y="213" font-size="23" font-weight="700">ESP32-C3</text>
+    <text x="105" y="242" font-size="17">SuperMini · 3,3-V-Logik</text>
+    <text x="105" y="340" font-size="17">Versorgung über USB-C</text>
+    <text x="105" y="367" font-size="14" fill="#a6b3c5">Keine Verbindung vom externen</text>
+    <text x="105" y="389" font-size="14" fill="#a6b3c5">5-V-Plus zum USB-5-V-Pfad.</text>
+    <text x="105" y="568" font-size="18">USB-C: PC / USB-Netzteil</text>
+    <text x="288" y="282" font-size="18" fill="#79ebc8">GPIO 4</text>
+    <text x="320" y="434" font-size="18" fill="#a6b3c5">GND</text>
+    <text x="602" y="242" font-size="21" font-weight="700">74AHCT125</text>
+    <text x="602" y="268" font-size="14">3,3 V → 5 V</text>
+    <text x="595" y="309" font-size="16">A</text><text x="800" y="309" font-size="16">Y</text>
+    <text x="685" y="218" font-size="14">VCC</text>
+    <text x="610" y="442" font-size="15">/OE</text><text x="738" y="442" font-size="15">GND</text>
+    <text x="1040" y="135" font-size="20" font-weight="700">Externes 5-V-Netzteil</text>
+    <text x="1040" y="159" font-size="14">Stromversorgung passend zur LED-Anzahl</text>
+    <text x="1110" y="175" font-size="12" fill="#ff979e">+5 V</text><text x="1273" y="175" font-size="12" fill="#a6b3c5">GND</text>
+    <text x="1100" y="244" font-size="21" font-weight="700">WS2812B-Streifen</text>
+    <text x="1100" y="284" font-size="17" fill="#ff979e">+5 V</text>
+    <text x="1100" y="324" font-size="17" fill="#79ebc8">DIN (Eingang)</text>
+    <text x="1100" y="384" font-size="17" fill="#a6b3c5">GND</text>
+    <text x="1195" y="410" font-size="13" fill="#a6b3c5">DOUT ist der Ausgang</text>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+      <path d="M230 525V460" stroke="#8cb9ff"/>
+      <path d="M380 295H580M830 295H885" stroke="#79ebc8"/>
+      <path d="M970 295H1020V320H1080" stroke="#79ebc8" marker-end="url(#arrow)"/>
+      <path d="M1130 180V185H705V195M1035 185V275H1080" stroke="#ff979e"/>
+      <path d="M1295 180H1400V500H365V430H380M630 460V500M760 460V500M1080 375H1060V500" stroke="#a6b3c5"/>
+    </g>
+    <rect x="885" y="284" width="85" height="22" fill="#10151e" stroke="#79ebc8" stroke-width="3"/>
+    <text x="888" y="270" font-size="17">330 Ω</text>
+    <g fill="#a6b3c5"><circle cx="630" cy="500" r="5"/><circle cx="760" cy="500" r="5"/><circle cx="1060" cy="500" r="5"/></g>
+    <g fill="#ff979e"><circle cx="1035" cy="185" r="5"/></g>
+    <text x="470" y="534" font-size="18" fill="#a6b3c5">Gemeinsame Masse: ESP32 · Pegelwandler · Streifen · Netzteil</text>
+    <rect x="470" y="560" width="900" height="138" rx="14" fill="#19212d" stroke="#44536a"/>
+    <text x="490" y="590" font-size="17" font-weight="700">Vor dem Einschalten</text>
+    <text x="490" y="620" font-size="15">• Pfeilrichtung beachten: Daten an DIN, nicht an DOUT anschließen.</text>
+    <text x="490" y="647" font-size="15">• /OE des benutzten 74AHCT125-Kanals an GND; VCC an 5 V.</text>
+    <text x="490" y="674" font-size="15">• Optional 500–1000 µF am Streifen zwischen +5 V und GND (+ an +5 V).</text>
+    <text x="80" y="650" font-size="14" fill="#a6b3c5">Rot: 5 V · Grün: Daten</text>
+    <text x="80" y="676" font-size="14" fill="#a6b3c5">Grau: GND · Blau: USB</text>
+    <text x="50" y="732" font-size="13" fill="#a6b3c5">Siehe README für Netzteil, Leitungen, Boardvarianten und die individuelle Zuordnung zwischen LEDs und Tasten.</text>
+  </g>
+</svg>

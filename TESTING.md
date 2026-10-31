@@ -8,8 +8,8 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 |---|---|
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
-| `pio test -e native` | 17 von 17 Tests bestanden |
-| `npm test` | 29 von 29 Browser-/MIDI-Tests bestanden |
+| `pio test -e native` | 18 von 18 Tests bestanden |
+| `npm test` | 42 von 42 Browser-/MIDI-Tests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
 
@@ -17,8 +17,8 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 
 Speicherbelegung laut finalem Linkergebnis:
 
-- Statischer RAM: **45.020 / 327.680 Bytes (13,7 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **897.502 / 1.572.864 Bytes (57,1 %)**.
+- Statischer RAM: **50.700 / 327.680 Bytes (15,5 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
+- Anwendung im Flash: **1.147.164 / 1.572.864 Bytes (72,9 %)**.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -139,6 +139,26 @@ Firmware 1.4.0 und das neue LittleFS-Image wurden erfolgreich auf den C3 übertr
 
 Die Nextcloud-Planung wurde präzisiert: festes MIDI-Verzeichnis in den Einstellungen, enthaltene MIDI-Dateien automatisch in der Auswahlliste. Die Nextcloud- und MIDIsss-Anbindungen sind weiterhin nicht implementiert.
 
+## MIDI-Bibliothek, kompakte Oberfläche und Anhören · Firmware 1.6.0
+
+Implementiert: persistentes festes Nextcloud-WebDAV-Verzeichnis, Dateiliste beim Öffnen des Trainings, Aktualisieren, MIDIsss-Suche mit Metadaten, Download/Abbruch und gemeinsamer MIDI-Import. Zugangsdaten werden nicht per API zurückgegeben. Remote-Jobs laufen einzeln in einem Hintergrundtask mit 16-KiB-Ringpuffer; der Browser erhält wiederholbare 4096-Byte-Blöcke. Ganze Dateien bleiben im Browser, nicht im ESP-Flash. Grenzen: MIDI 2 MiB, Listen 256 KiB, Zeitlimit etwa drei Minuten. Zertifikatsprüfung erfolgt mit SDK-CA-Bundle oder gespeicherter privater CA; bei fehlender Uhrzeit wird NTP versucht. Keine automatische Weiterleitung an fremde Hosts.
+
+LED-Aufbau und Tests sind auf einer Seite zusammengeführt, die Notenzuordnung ist aufklappbar; Abstände und Bedienelemente sind kompakter. Alte Links auf `#config` führen zur gemeinsamen LED-Seite. Eine vorhandene mobile CSS-Regel mit negativen Black-Key-Rändern aus dem früheren Flex-Layout wurde entfernt, damit die absolute Tastengeometrie mit den LED-Mitten übereinstimmt.
+
+MIDI-Anhören: kompletter Notenablauf mit Note-Off-Dauern, Velocity, Originaltempo und Tempoänderungen, getrennten gleichnamigen Noten verschiedener Kanäle und begrenzten Ersatzdauern bei fehlendem Note Off. Lokaler Synthesizer mit bis zu 32 Stimmen und kleinen Planungsfenstern, Pause/Fortsetzen, Stopp, Lautstärke und Freigabe bei Fokusverlust/Seitenwechsel. Keine Trainingsanschläge oder LED-Note-On-Ereignisse aus der Wiedergabe; Kanal/Transposition gelten, Tastatur-/Abschnittsgrenzen nicht. Originalinstrumente, Pedal und Pitch Bend fehlen. Die bereitgestellte Metallica-Datei wurde zusätzlich als vollständige Wiedergabe gelesen: 13.060 Noten, 473,18 Sekunden.
+
+Bestanden: **18 native Tests und 40 Node-Tests**, Format-/Syntaxprüfung und Firmwarebuild. Neue Prüfungen betreffen URL-/Dateinamenbegrenzung, UTF-8-URL-Encoding, Nextcloud-XML mit fremden oder verschachtelten Links, MIDIsss-Antworten, Block-Wiederholung nach Netzwerkfehler, Größenlimit/Abbruch, persistente Formularübertragung ohne Passwort-Rückgabe, automatische Liste, beide Importquellen sowie Wiedergabe mit Tempoänderung, Note Off, Kanalüberlagerung, Tonhöhe und Pause/Stopp. Die Audio-Tests verwenden einen AudioContext-Testdouble; sie bestätigen keine hörbare Ausgabe auf iPhone/Safari.
+
+### Tatsächlich am C3 geprüft
+
+- Firmware und LittleFS-Image wurden über USB hochgeladen, Flash-Hashes jeweils verifiziert.
+- Ein temporärer authentifizierter HTTP-WebDAV-Testserver lieferte eine Verzeichnisliste (238 Bytes) und eine selbst erzeugte MIDI-Datei mit 128.026 Bytes. Authentifizierung und `Depth: 1` wurden geprüft. Das Gerät übertrug die Datei unverändert in 6,13 Sekunden, einschließlich Wiederholung eines bereits abgeholten Blocks. SHA-256: `ee6a82a027c2a7620e608b96b6c0bc1c19508337a0f71150f512393fb92e621a`. Status-HTTP blieb während der laufenden Übertragung abfragbar. Test-Einstellungen wurden anschließend wieder entfernt; Routerdaten blieben erhalten.
+- Echte MIDIsss-HTTPS-Suche `piano`: drei Treffer, 192 Bytes; erster MIDI-Download: 5.863 Bytes. Damit sind TLS inklusive Zertifikat-/Zeitprüfung und Binärtransfer auf dem C3 bestätigt.
+- Ein jsdom-Durchlauf lud die echte Geräte-Weboberfläche über HTTP, suchte MIDIsss, übernahm den Treffer „Electricity“, parste 128 von 356 Übungsschritten und startete die importierte Übung tatsächlich auf dem C3. Danach wurde freies Spiel wiederhergestellt. Dies war ein DOM-/API-Durchlauf, keine visuelle Safari-Prüfung.
+- Aufbauillustrationen wurden mit dem eingebauten Imagegen-Werkzeug erstellt und ins Repository kopiert. Das separat gezeichnete SVG-Anschlussschema wurde gerendert und visuell auf Beschriftung und Leitungsführung geprüft. Die Bilder sind keine Fotos eines real geprüften Aufbaus; ihre Prompts und Grenzen stehen unter `docs/images/GENERATED.md`.
+
+Offen bleiben die eigene Nextcloud-Installation (einschließlich öffentlicher Freigabe/private CA), sichtbare Safari-Darstellung und tatsächliches Anhören auf dem Zielgerät. Die Implementierung der beiden Quellen ist abgeschlossen; diese installationsabhängigen Prüfungen sind in TODO.md als offen gekennzeichnet.
+
 ## Noch am echten Gerät prüfen
 
 Upload und serieller Starttest sind durchgeführt. Der Benutzer bestätigte die LED-Funktion nach Korrektur der Anschlussrichtung. Die LED-Hinweise der neuen Trainingsmodi und das Yamaha-Keyboard wurden noch nicht funktional geprüft. Folgende Prüfungen sind noch offen:
@@ -154,3 +174,23 @@ Upload und serieller Starttest sind durchgeführt. Der Benutzer bestätigte die 
 8. Trainingsmodi auf iPhone/iPad einschließlich MIDI-Dateiimport, zeitlicher Auswertung, Verbindungsabbruch und passender LED-Zielanzeige.
 
 Echtes USB-MIDI und allgemeine Akkordnamenerkennung gehören weiterhin zu späteren Phasen. Die Trainingsmodi sind mit simuliertem MIDI implementiert und durch Hosttests geprüft; der vollständige Geräte-/Safari-Durchlauf bleibt offen.
+
+## Mobilansicht, MIDICollection und Wiedergabe-LEDs · Firmware 1.7.0
+
+Die Start-/Anhörsteuerung steht gemeinsam oben. Selten benötigte Übungsoptionen, Bibliothek und lokaler Import sind aufklappbar. Auf Displays bis 1000 Pixel Breite ist das Menü beim ersten Besuch eingeklappt; eine gespeicherte Auswahl hat Vorrang. Die mobile Navigation scrollt horizontal. Engere Karten- und Kennzahlenabstände sparen Platz, Touch-Bedienelemente bleiben mindestens 44 Pixel hoch. Die Darstellung ist weiterhin nicht visuell auf iPhone/iPad geprüft.
+
+MIDICollection verwendet das öffentliche HTML-Suchformular mit Seitenwechsel und die dort genannten Dateipfade. Ein Formatwechsel der externen Seite kann die Anbindung beeinträchtigen. Parser- und native Prüfungen verwerfen fremde Hosts, unzulässige Dateipfade und kodierte Pfadwechsel. Leere Suchergebnisse werden unterstützt.
+
+Der Browser sendet während des Anhörens die aktuell klingenden Noten an den authentifizierten Endpunkt `POST /api/playback`. Die nächste Audio-Planung wird nicht vorzeitig an die LEDs gemeldet. Mehrfach belegte Tonhöhen werden mit höchster Velocity zusammengefasst, gleiche Zustände nur als Lebenszeichen erneut gesendet. Es läuft höchstens eine LED-Anfrage gleichzeitig, überholte Zustände werden zusammengefasst. Trainingsanschläge werden dabei nicht gewertet. Pause/Stopp geben die Vorschau frei, ausbleibende Aktualisierungen beenden sie nach drei Sekunden. Die Übertragung erfolgt per WLAN und ist nicht samplegenau mit dem Browserton synchron.
+
+Bestanden: **18 native Tests und 42 Node-Tests**, C3-Firmwarebuild, LittleFS-Build, Format-/Syntaxprüfung. Zusätzliche Tests prüfen MIDICollection-HTML mit Seitenmetadaten, fremden Links, Duplikaten und leeren Ergebnissen; aktuelle statt vorausgeplanter Audiostimmen; zusammengefasste Wiedergabe-LED-Zustände und Freigabe ohne simulierte Trainingsanschläge.
+
+Tatsächlich am C3 mit Firmware 1.7.0 geprüft:
+
+- Firmware und LittleFS per USB übertragen, Flash-Hashes verifiziert.
+- Authentifizierter WebDAV-Testserver erneut erfolgreich: 238 Bytes Liste und 128.026 Bytes unveränderte MIDI-Daten samt wiederholtem Datenblock, Dateiübertragung 6,65 Sekunden. Temporäre Nextcloud-Einstellungen danach entfernt.
+- MIDIsss erneut erfolgreich: drei Suchtreffer und 5.863 Bytes MIDI-Download.
+- MIDICollection: echte HTTPS-Formularsuche nach `metallica`, 25 Dateien in 17.046 Bytes HTML, anschließender Download einer gültigen MIDI-Datei mit 55.354 Bytes.
+- Wiedergabe von MIDI-Note 60: Vorschau aktiv, Note im Gerätezustand und LED-Ausgabepuffer sichtbar, Trainingszähler unverändert. Explizites Beenden und Ablauf nach 3,3 Sekunden ohne Lebenszeichen setzen den LED-Puffer wieder auf Aus.
+
+Die Prüfung des Ausgabepuffers bestätigt den Softwarepfad, kein optisch beobachtetes Leuchten. Hörbare Browserausgabe, sichtbare Safari-Darstellung und eine konkrete Nutzer-Nextcloud bleiben manuelle Prüfungen.

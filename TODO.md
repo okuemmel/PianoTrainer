@@ -1,36 +1,48 @@
-# Geplante Erweiterungen
+# Umsetzungsstand und offene Prüfungen
 
-Stand: 31. Oktober 2026. Die folgenden Importquellen sind geplant und noch nicht implementiert.
+Stand: 31. Oktober 2026. Nextcloud- und MIDIsss-Import sind ab Firmware 1.6.0 implementiert; Firmware 1.7.0 ergänzt MIDICollection, Wiedergabe-LEDs und die kompakte Mobilansicht. Die folgenden Punkte unterscheiden Implementierung und noch offene manuelle Prüfungen.
 
 ## Nextcloud: MIDI-Verzeichnis lesen und importieren
 
-- [ ] Unter Einstellungen ein festes Nextcloud-MIDI-Verzeichnis hinterlegen (Adresse/Ordner und erforderlicher Zugriff).
-- [ ] Zugriffsweg festlegen und prüfen: angemeldeter WebDAV-Zugriff oder freigegebener Ordner.
-- [ ] Die im hinterlegten Verzeichnis enthaltenen `.mid`/`.midi`-Dateien automatisch in der MIDI-Auswahlliste anzeigen.
-- [ ] Die Liste beim Öffnen laden und über „Aktualisieren“ erneut einlesen. Keine manuelle Verzeichnisauswahl pro Import.
-- [ ] Ausgewählte Datei herunterladen und in den bestehenden MIDI-Importer übernehmen.
-- [ ] Kanalwahl, Transposition, Tastaturfilter und Abschnittsauswahl weiterverwenden.
-- [ ] Ladezustand, leere Ordner und Verbindungs-/Anmeldefehler anzeigen.
+- [x] Unter Einstellungen ein festes Nextcloud-MIDI-Verzeichnis hinterlegen (Adresse/Ordner und erforderlicher Zugriff).
+- [x] Zugriffsweg festlegen und prüfen: angemeldeter WebDAV-Zugriff oder freigegebener Ordner.
+- [x] Die im hinterlegten Verzeichnis enthaltenen `.mid`/`.midi`-Dateien automatisch in der MIDI-Auswahlliste anzeigen.
+- [x] Die Liste beim Öffnen laden und über „Aktualisieren“ erneut einlesen. Keine manuelle Verzeichnisauswahl pro Import.
+- [x] Ausgewählte Datei herunterladen und in den bestehenden MIDI-Importer übernehmen.
+- [x] Kanalwahl, Transposition, Tastaturfilter und Abschnittsauswahl weiterverwenden.
+- [x] Ladezustand, leere Ordner und Verbindungs-/Anmeldefehler anzeigen.
 
-Für die Umsetzung fehlen noch die konkrete Nextcloud-Adresse, der Ordnerpfad und die gewünschte Zugriffsart. Zugangsdaten gehören nicht in den Quelltext oder ins Git-Repository.
+Die eigene Nextcloud-Adresse, WebDAV-Verzeichnisadresse und Zugangsdaten werden jetzt in den Import-Einstellungen eingegeben. Die Einrichtung einer konkreten Nutzer-Nextcloud ist noch manuell zu prüfen; der WebDAV-Weg wurde am C3 mit einem authentifizierten Testserver geprüft. Zugangsdaten gehören nicht ins Git-Repository.
 
 ## MIDIsss: MIDI-Suche und Import
 
-- [ ] Suchfeld und Ergebnisliste im Training ergänzen.
-- [ ] Suche über `GET https://midisss.com/api.php?action=search&q={Suchbegriff}` anbinden; Suchbegriff URL-kodieren.
-- [ ] Ergebnisse mit ID, Namen, Beschreibung (`notes`) und Bewertung (`average_rating`) darstellen.
-- [ ] Gewählte MIDI-Datei über `GET https://midisss.com/api.php?action=get_midi&id={ID}` laden.
-- [ ] Binärdaten in denselben MIDI-Importer wie lokale Dateien und Nextcloud-Dateien geben.
-- [ ] Keine Treffer, API-Fehler und fehlende Dateien verständlich behandeln; Suchanfragen verzögern und parallele Anfragen begrenzen.
+- [x] Suchfeld und Ergebnisliste im Training ergänzen.
+- [x] Suche über `GET https://midisss.com/api.php?action=search&q={Suchbegriff}` anbinden; Suchbegriff URL-kodieren.
+- [x] Ergebnisse mit ID, Namen, Beschreibung (`notes`) und Bewertung (`average_rating`) darstellen.
+- [x] Gewählte MIDI-Datei über `GET https://midisss.com/api.php?action=get_midi&id={ID}` laden.
+- [x] Binärdaten in denselben MIDI-Importer wie lokale Dateien und Nextcloud-Dateien geben.
+- [x] Keine Treffer, API-Fehler und fehlende Dateien verständlich behandeln; Suchanfragen verzögern und parallele Anfragen begrenzen.
 
-Quelle: [MIDIsss API-Dokumentation](https://midisss.com/api_explain.php), am 31. Oktober 2026 gelesen. Such- und Download-Endpunkte sind dokumentiert; die tatsächlichen API-Antworten und die Browseranbindung wurden noch nicht getestet.
+Quelle: [MIDIsss API-Dokumentation](https://midisss.com/api_explain.php), am 31. Oktober 2026 gelesen. Die echte HTTPS-Suche und ein MIDI-Download wurden am C3 getestet; die Oberfläche wurde zusätzlich per jsdom mit echter Geräte-API bis zum Start der importierten Übung durchlaufen.
 
 ## Gemeinsame Umsetzung und Prüfung
 
-- [ ] Browserzugriff vom lokalen Trainer aus prüfen, insbesondere CORS und Authentifizierung; bei Bedarf einen passenden Vermittlungsweg festlegen.
-- [ ] Verbindung aus dem normalen WLAN prüfen; externen Import ohne Internetverbindung verständlich behandeln.
-- [ ] Dateigröße und MIDI-Inhalt vor der Übernahme mit den bestehenden Importgrenzen prüfen.
-- [ ] Große Dateien weiter im Browser verarbeiten und nur den gewählten Trainingsabschnitt an den C3 senden.
-- [ ] Beide Quellen auf iPhone/iPad mit Notenvorschau und LED-Anzeige prüfen.
+- [x] Browserzugriff vom lokalen Trainer aus prüfen, insbesondere CORS und Authentifizierung; bei Bedarf einen passenden Vermittlungsweg festlegen.
+- [x] Verbindung aus dem normalen WLAN prüfen; externen Import ohne Internetverbindung verständlich behandeln.
+- [x] Dateigröße und MIDI-Inhalt vor der Übernahme mit den bestehenden Importgrenzen prüfen.
+- [x] Große Dateien weiter im Browser verarbeiten und nur den gewählten Trainingsabschnitt an den C3 senden.
+- [ ] Alle drei Quellen auf iPhone/iPad mit Notenvorschau, hörbarer Audioausgabe und LED-Anzeige prüfen.
+- [ ] Eigene Nextcloud-Installation einschließlich öffentlicher Freigabe / privater CA prüfen.
 
-Ein Wechsel auf den S3 ist hierfür zunächst keine Voraussetzung; die Anbindung und der Ressourcenbedarf sollen zuerst mit dem vorhandenen C3 geprüft werden.
+Die Anbindung wurde auf dem vorhandenen C3 geprüft; ein S3 ist für diese Importfunktionen nicht erforderlich.
+
+## Weitere umgesetzte Wünsche
+
+- [x] README benennt Vibe Coding und den Lernzweck mit aufgeklebter LED-Leiste.
+- [x] LED-Konfiguration und Tests auf einer kompakteren Seite zusammenführen.
+- [x] MIDI-Dateien über den Browser anhören, pausieren und stoppen.
+- [x] Aufbau- und Anschlussbilder für GitHub ergänzen und Bildgenerierung dokumentieren.
+
+- [x] MIDICollection-Suche mit Seitenwechsel, Import und Anhören.
+- [x] Anhörfunktion neben Übungsstart; echte und virtuelle LEDs zeigen klingende Noten ohne Trainingswertung.
+- [x] Handy-/Tablet-Layout: Navigation standardmäßig eingeklappt, aufklappbare Optionen und Importbereiche.

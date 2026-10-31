@@ -3,6 +3,7 @@
 
 #include "ConfigManager.h"
 #include "MidiInput.h"
+#include "RemoteLibrary.h"
 #include "WiFiManager.h"
 class TrainerWebServer {
  public:
@@ -14,6 +15,8 @@ class TrainerWebServer {
 
  private:
   WebServer server{80};
+  RemoteLibrary library;
+  void libraryRoutes();
   ConfigManager& config;
   WiFiManager& wifi;
   LedController& leds;

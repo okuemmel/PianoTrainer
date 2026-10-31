@@ -77,6 +77,8 @@
       minNote > maxNote
     )
       throw Error("Ungültiger Abschnitt oder Tastaturbereich.");
+    const performance = [],
+      tempos = [{ tick: 0, tempo: 500000 }];
     const attacks = new Map(),
       channels = new Set();
     let droppedNotes = 0,
@@ -116,6 +118,7 @@
             if (!tempo) throw Error("MIDI-Tempo ist null.");
             if (tick === 0) firstTempo = tempo;
             tempoEvents++;
+            if (options.performanceOnly) tempos.push({ tick, tempo });
           }
           p += size;
           if (type === 47) {
@@ -146,6 +149,20 @@
           (!selectedChannel && channel === 10)
         )
           continue;
+        if (options.performanceOnly && (kind === 8 || kind === 9)) {
+          const note = a + transpose;
+          if (note < 0 || note > 127)
+            throw Error("Transponierte Note außerhalb von MIDI 0–127.");
+          if (note >= minNote && note <= maxNote)
+            performance.push({
+              tick,
+              note,
+              velocity: b,
+              channel,
+              on: kind === 9 && b > 0,
+            });
+          continue;
+        }
         if (kind === 9 && b > 0) {
           const note = a + transpose;
           if (note < 0 || note > 127)
@@ -165,6 +182,64 @@
             Math.round((tick * 480) / division / 60) * 60,
           );
       }
+    }
+    if (options.performanceOnly) {
+      tempos.sort((a, b) => a.tick - b.tick);
+      performance.sort((a, b) => a.tick - b.tick);
+      let tempo = 500000,
+        lastTick = 0,
+        seconds = 0,
+        cursor = 0;
+      for (const event of performance) {
+        while (cursor < tempos.length && tempos[cursor].tick <= event.tick) {
+          const next = tempos[cursor++];
+          seconds += ((next.tick - lastTick) * tempo) / division / 1000000;
+          lastTick = next.tick;
+          tempo = next.tempo;
+        }
+        event.time =
+          seconds + ((event.tick - lastTick) * tempo) / division / 1000000;
+        if (!Number.isFinite(event.time) || event.time > 7200)
+          throw Error("MIDI-Wiedergabe ist länger als zwei Stunden.");
+      }
+      const held = new Map(),
+        notes = [];
+      const origin = performance.find((e) => e.on)?.time;
+      if (origin === undefined)
+        throw Error("Keine spielbaren Noten im gewählten Kanal gefunden.");
+      const end = Math.max(origin, ...performance.slice(-1).map((e) => e.time));
+      for (const event of performance) {
+        const key = event.channel + ":" + event.note;
+        if (event.on) {
+          const voice = {
+            note: event.note,
+            velocity: event.velocity,
+            time: event.time - origin,
+            duration: null,
+          };
+          if (!held.has(key)) held.set(key, []);
+          held.get(key).push(voice);
+          notes.push(voice);
+        } else {
+          const voice = held.get(key)?.shift();
+          if (voice)
+            voice.duration = Math.max(0.03, event.time - origin - voice.time);
+        }
+      }
+      for (const note of notes)
+        if (note.duration === null)
+          note.duration = Math.max(
+            0.1,
+            Math.min(2, end - origin - note.time + 0.5),
+          );
+      return {
+        notes,
+        duration: notes.reduce(
+          (end, note) => Math.max(end, note.time + note.duration),
+          0,
+        ),
+        bpm: Math.round(60000000 / firstTempo),
+      };
     }
     const groups = [...attacks.entries()].sort((a, b) => a[0] - b[0]);
     if (!groups.length)

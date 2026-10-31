@@ -7,6 +7,8 @@
     <title>MIDI · Piano Trainer</title>
     <link rel="stylesheet" href="/style.css" />
     <script defer src="/midi-file.js"></script>
+    <script defer src="/library.js"></script>
+    <script defer src="/midi-player.js"></script>
     <script defer src="/app.js"></script>
   </head>
   <body>
@@ -36,9 +38,9 @@
     <div class="layout">
       <nav id="mainNavigation" aria-label="Hauptnavigation">
         <a href="#dashboard">Übersicht</a><a href="#training">Training</a
-        ><a href="#control">LED-Steuerung</a
-        ><a href="#config">LED-Konfiguration</a
+        ><a href="#control">LEDs · Aufbau &amp; Test</a
         ><a href="#wifi">WLAN-Einstellungen</a
+        ><a href="#imports">Import-Einstellungen</a
         ><a href="#midi">MIDI-Konfiguration</a
         ><a href="#system">Systeminformationen</a>
         <div class="nav-foot">
@@ -133,11 +135,8 @@
 
         <section id="training" class="page" hidden>
           <p class="eyebrow">SPIELEN · LERNEN · WIEDERHOLEN</p>
-          <h1>Dein nächster Schritt.</h1>
-          <p class="lead">
-            Virtuelle MIDI-Tasten, echte LED-Hinweise. Wähle eine Übung und
-            spiele die markierten Noten.
-          </p>
+          <h1>Training</h1>
+
           <article>
             <form id="trainingForm">
               <div class="fields">
@@ -170,34 +169,70 @@
                     value="80"
                     required
                 /></label>
-                <label
-                  >Zeitfenster ± Millisekunden<input
-                    id="trainingTolerance"
-                    type="number"
-                    min="80"
-                    max="400"
-                    value="220"
-                    required
-                /></label>
-                <label
-                  >Grundnote (MIDI)<input
-                    id="trainingRoot"
-                    type="number"
-                    min="0"
-                    max="127"
-                    value="60"
-                    required
-                /></label>
-                <label
-                  >Song-Spielweise<select id="songTimed">
-                    <option value="false">
-                      Schrittweise, auf richtige Tasten warten
-                    </option>
-                    <option value="true">Im Tempo mit Einzähler</option>
-                  </select></label
-                >
               </div>
-              <button type="submit">Übung starten / neu beginnen</button>
+              <details class="compact-details">
+                <summary>Übungsoptionen</summary>
+                <div class="fields">
+                  <label
+                    >Zeitfenster ± Millisekunden<input
+                      id="trainingTolerance"
+                      type="number"
+                      min="80"
+                      max="400"
+                      value="220"
+                      required
+                  /></label>
+                  <label
+                    >Grundnote (MIDI)<input
+                      id="trainingRoot"
+                      type="number"
+                      min="0"
+                      max="127"
+                      value="60"
+                      required
+                  /></label>
+                  <label
+                    >Song-Spielweise<select id="songTimed">
+                      <option value="false">
+                        Schrittweise, auf richtige Tasten warten
+                      </option>
+                      <option value="true">Im Tempo mit Einzähler</option>
+                    </select></label
+                  >
+                </div>
+              </details>
+              <div class="actions playback-controls">
+                <button type="submit">Übung starten</button>
+                <button id="listenMidi" type="button" class="secondary">
+                  MIDI anhören</button
+                ><button
+                  id="pauseMidi"
+                  type="button"
+                  class="secondary"
+                  disabled
+                  hidden
+                >
+                  Pause</button
+                ><button
+                  id="stopMidi"
+                  type="button"
+                  class="secondary"
+                  disabled
+                  hidden
+                >
+                  Stopp</button
+                ><label class="volume-control"
+                  >Lautstärke<input
+                    id="midiVolume"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="55"
+                /></label>
+              </div>
+              <p id="midiPlaybackStatus" role="status">
+                MIDI auswählen oder in der Bibliothek auf Anhören tippen.
+              </p>
             </form>
             <div class="actions">
               <button id="trainingPause" class="secondary" disabled>
@@ -273,187 +308,265 @@
               60–80 BPM beginnen.
             </p>
           </article>
-          <article>
-            <h2>Eigene MIDI-Datei üben</h2>
-            <p>
-              Die Datei wird lokal im Browser gelesen. Es werden nur die
-              Noteneinsätze eines gewählten Abschnitts an den ESP32 gesendet.
-              MIDI 0/1, bis 2 MiB und 250.000 Ereignisse. Pro Abschnitt
-              höchstens 128 Einsätze und 8 gleichzeitige Noten.
-            </p>
-            <div class="fields">
+          <article class="foldable-card">
+            <details id="libraryPanel">
+              <summary>MIDI-Bibliothek · Nextcloud &amp; Online-Suche</summary>
+              <div class="row">
+                <h2>MIDI-Bibliothek</h2>
+                <a href="#imports">Nextcloud einstellen →</a>
+              </div>
+              <div class="library-toolbar">
+                <button id="cloudRefresh" class="secondary" type="button">
+                  Nextcloud aktualisieren
+                </button>
+                <form id="midiSearchForm">
+                  <label class="sr-only" for="onlineSource">Online-Quelle</label
+                  ><select id="onlineSource">
+                    <option value="midisss">MIDIsss</option>
+                    <option value="midicollection">MIDICollection</option>
+                  </select>
+                  <label class="sr-only" for="midiSearch"
+                    >Online-Bibliothek durchsuchen</label
+                  ><input
+                    id="midiSearch"
+                    type="search"
+                    maxlength="160"
+                    placeholder="Titel, Künstler oder Stichwort"
+                    required
+                  /><button type="submit">Suchen</button>
+                </form>
+                <button
+                  id="libraryCancel"
+                  class="secondary"
+                  type="button"
+                  hidden
+                >
+                  Abbrechen
+                </button>
+              </div>
+              <p id="libraryStatus" role="status">
+                Nextcloud-Verzeichnis in den Import-Einstellungen hinterlegen.
+              </p>
+              <div class="library-columns">
+                <div>
+                  <h3>Deine Nextcloud-MIDIs</h3>
+                  <ul id="cloudFiles" class="midi-library-list"></ul>
+                </div>
+                <div>
+                  <h3 id="onlineLibraryTitle">MIDIsss-Suchergebnisse</h3>
+                  <ul id="searchFiles" class="midi-library-list"></ul>
+                  <div id="searchPager" class="actions" hidden>
+                    <button id="searchPrevious" type="button" class="secondary">
+                      ← Zurück</button
+                    ><span id="searchPageInfo"></span
+                    ><button id="searchNext" type="button" class="secondary">
+                      Weiter →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </article>
+          <article class="foldable-card">
+            <details id="importPanel">
+              <summary>Eigene MIDI-Datei · Import &amp; Optionen</summary>
+              <h2>Eigene MIDI-Datei üben</h2>
+              <p>
+                Die Datei wird lokal im Browser gelesen. Es werden nur die
+                Noteneinsätze eines gewählten Abschnitts an den ESP32 gesendet.
+                MIDI 0/1, bis 2 MiB und 250.000 Ereignisse. Pro Abschnitt
+                höchstens 128 Einsätze und 8 gleichzeitige Noten.
+              </p>
+              <div class="fields">
+                <label
+                  >MIDI-Datei<input
+                    id="midiFile"
+                    type="file"
+                    accept=".mid,.midi,audio/midi" /></label
+                ><label
+                  >Importkanal (0 = alle ohne Schlagzeug)<input
+                    id="importChannel"
+                    type="number"
+                    min="0"
+                    max="16"
+                    value="0" /></label
+                ><label
+                  >Transposition (Halbtöne)<input
+                    id="importTranspose"
+                    type="number"
+                    min="-48"
+                    max="48"
+                    value="0"
+                /></label>
+              </div>
               <label
-                >MIDI-Datei<input
-                  id="midiFile"
-                  type="file"
-                  accept=".mid,.midi,audio/midi" /></label
-              ><label
-                >Importkanal (0 = alle ohne Schlagzeug)<input
-                  id="importChannel"
+                >Abschnitt ab Einsatz (1-basiert)<input
+                  id="importStart"
                   type="number"
-                  min="0"
-                  max="16"
-                  value="0" /></label
-              ><label
-                >Transposition (Halbtöne)<input
-                  id="importTranspose"
-                  type="number"
-                  min="-48"
-                  max="48"
-                  value="0"
+                  min="1"
+                  value="1"
               /></label>
-            </div>
-            <label
-              >Abschnitt ab Einsatz (1-basiert)<input
-                id="importStart"
-                type="number"
-                min="1"
-                value="1"
-            /></label>
-            <label class="check-option"
-              ><input id="importRange" type="checkbox" checked /> Nur Noten im
-              konfigurierten Tastaturbereich übernehmen</label
-            >
-            <button id="importMidi" class="secondary">
-              Datei als Übung übernehmen
-            </button>
-            <p id="importResult" role="status"></p>
-            <p class="hint">
-              Noten müssen in deiner konfigurierten Tastatur liegen und einer
-              LED zugeordnet sein. Tempoänderungen werden beim Üben auf das
-              gewählte feste Tempo vereinheitlicht. Vorlauf wird durch den
-              eigenen Einzähler ersetzt.
-            </p>
+              <label class="check-option"
+                ><input id="importRange" type="checkbox" checked /> Nur Noten im
+                konfigurierten Tastaturbereich übernehmen</label
+              >
+              <button id="importMidi" class="secondary">
+                Datei als Übung übernehmen
+              </button>
+              <p id="importResult" role="status"></p>
+              <p class="hint">
+                Komplette Datei mit aktueller Kanalwahl und Transposition,
+                unabhängig vom Übungsabschnitt und Tastaturbereich. Lokaler
+                Klavier-Synthesizer mit Notenlängen und Originaltempo
+                einschließlich Tempoänderungen, ohne Originalinstrumente oder
+                Pedal. Die LEDs zeigen gleichzeitig die klingenden Noten, soweit
+                sie einer Taste zugeordnet sind; Trainingsanschläge werden dabei
+                nicht gewertet.
+              </p>
+              <p class="hint">
+                Noten müssen in deiner konfigurierten Tastatur liegen und einer
+                LED zugeordnet sein. Tempoänderungen werden beim Üben auf das
+                gewählte feste Tempo vereinheitlicht. Vorlauf wird durch den
+                eigenen Einzähler ersetzt.
+              </p>
+            </details>
           </article>
         </section>
         <section id="control" class="page" hidden>
-          <p class="eyebrow">LICHTLABOR</p>
-          <h1>LED-Steuerung</h1>
-          <article>
-            <h2>Farbe & einzelne LED</h2>
-            <div class="fields">
-              <label
-                >Farbe<input type="color" id="color" value="#52e0bd" /></label
-              ><label
-                >LED-Index (ab 0)<input
-                  id="ledIndex"
-                  type="number"
-                  min="0"
-                  value="0"
-              /></label>
+          <p class="eyebrow">DEIN AUFBAU · LICHTTEST</p>
+          <h1>LEDs: Aufbau &amp; Test</h1>
+          <div class="led-workspace">
+            <div>
+              <form id="ledForm">
+                <article>
+                  <h2>Streifen & Tastatur</h2>
+                  <div class="fields">
+                    <label
+                      >LED-Anzahl<input
+                        name="count"
+                        type="number"
+                        min="1"
+                        max="300"
+                        required /></label
+                    ><label
+                      >Daten-GPIO<select name="pin" id="pin"></select></label
+                    ><label
+                      >Farbreihenfolge<select name="rgb">
+                        <option value="false">GRB (Standard)</option>
+                        <option value="true">RGB</option>
+                      </select></label
+                    ><label
+                      >Helligkeit (%)<input
+                        name="brightness"
+                        type="number"
+                        min="1"
+                        max="100"
+                        required /></label
+                    ><label
+                      >Erste LED (ab 0)<input
+                        name="first"
+                        type="number"
+                        min="0"
+                        max="299"
+                        required /></label
+                    ><label
+                      >Tastenanzahl<input
+                        name="keys"
+                        type="number"
+                        min="1"
+                        max="88"
+                        required /></label
+                    ><label
+                      >Erste MIDI-Note<input
+                        name="baseNote"
+                        type="number"
+                        min="0"
+                        max="127"
+                        required /></label
+                    ><label
+                      >Reihenfolge<select name="reversed">
+                        <option value="false">Normal</option>
+                        <option value="true">Umgekehrt</option>
+                      </select></label
+                    >
+                  </div>
+                  <p class="hint">
+                    WS2812B · 800 kHz · GPIO 2, 8, 9 sowie USB- und Flash-Pins
+                    sind gesperrt. GPIO 4 ist empfohlen.
+                  </p>
+                </article>
+                <details class="mapping-details">
+                  <summary>Individuelle Notenzuordnung</summary>
+                  <div class="row">
+                    <button type="button" class="secondary" id="autoMap">
+                      Fortlaufend zuordnen
+                    </button>
+                  </div>
+                  <p>
+                    Jede MIDI-Note erhält einen logischen LED-Offset ab „Erste
+                    LED“. −1 deaktiviert die Note. Umgekehrte Reihenfolge
+                    spiegelt anschließend den gesamten Streifen. Mehrere Noten
+                    dürfen eine LED verwenden.
+                  </p>
+                  <div class="mapping" id="mapping"></div>
+                </details>
+                <button type="submit">Konfiguration speichern</button>
+              </form>
             </div>
-            <div class="actions">
-              <button data-command="single">Einzelne LED</button
-              ><button data-command="color">Alle in dieser Farbe</button
-              ><button data-command="off" class="danger">
-                Alles ausschalten
-              </button>
+            <div>
+              <article>
+                <h2>Farbe & einzelne LED</h2>
+                <div class="fields">
+                  <label
+                    >Farbe<input
+                      type="color"
+                      id="color"
+                      value="#52e0bd" /></label
+                  ><label
+                    >LED-Index (ab 0)<input
+                      id="ledIndex"
+                      type="number"
+                      min="0"
+                      value="0"
+                  /></label>
+                </div>
+                <div class="actions">
+                  <button data-command="single">Einzelne LED</button
+                  ><button data-command="color">Alle in dieser Farbe</button
+                  ><button data-command="off" class="danger">
+                    Alles ausschalten
+                  </button>
+                </div>
+              </article>
+              <article>
+                <h2>Testprogramme</h2>
+                <p>
+                  Die Animation läuft auf dem ESP32 weiter und lässt sich
+                  jederzeit stoppen.
+                </p>
+                <div class="actions">
+                  <button data-command="sequence">LEDs nacheinander</button
+                  ><button data-command="chase">Lauflicht</button
+                  ><button data-command="colors">
+                    Rot / Grün / Blau / Weiß</button
+                  ><button data-command="brightness">Helligkeitsrampe</button>
+                  <button data-command="diagnostic">
+                    Erste LED: kurzer RGB-Test
+                  </button>
+                </div>
+                <p id="ledResult" role="status"></p>
+                <p class="hint">
+                  Die Rampe erreicht höchstens die konfigurierte Helligkeit.
+                </p>
+                <div class="actions">
+                  <button data-solid="16711680">Rot</button
+                  ><button data-solid="65280">Grün</button
+                  ><button data-solid="255">Blau</button
+                  ><button data-solid="16777215">Weiß</button>
+                </div>
+              </article>
             </div>
-          </article>
-          <article>
-            <h2>Testprogramme</h2>
-            <p>
-              Die Animation läuft auf dem ESP32 weiter und lässt sich jederzeit
-              stoppen.
-            </p>
-            <div class="actions">
-              <button data-command="sequence">LEDs nacheinander</button
-              ><button data-command="chase">Lauflicht</button
-              ><button data-command="colors">Rot / Grün / Blau / Weiß</button
-              ><button data-command="brightness">Helligkeitsrampe</button>
-              <button data-command="diagnostic">
-                Erste LED: kurzer RGB-Test
-              </button>
-            </div>
-            <p id="ledResult" role="status"></p>
-            <p class="hint">
-              Die Rampe erreicht höchstens die konfigurierte Helligkeit.
-            </p>
-            <div class="actions">
-              <button data-solid="16711680">Rot</button
-              ><button data-solid="65280">Grün</button
-              ><button data-solid="255">Blau</button
-              ><button data-solid="16777215">Weiß</button>
-            </div>
-          </article>
-        </section>
-        <section id="config" class="page" hidden>
-          <p class="eyebrow">DEIN AUFBAU</p>
-          <h1>LED-Konfiguration</h1>
-          <form id="ledForm">
-            <article>
-              <h2>Streifen & Tastatur</h2>
-              <div class="fields">
-                <label
-                  >LED-Anzahl<input
-                    name="count"
-                    type="number"
-                    min="1"
-                    max="300"
-                    required /></label
-                ><label>Daten-GPIO<select name="pin" id="pin"></select></label
-                ><label
-                  >Farbreihenfolge<select name="rgb">
-                    <option value="false">GRB (Standard)</option>
-                    <option value="true">RGB</option>
-                  </select></label
-                ><label
-                  >Helligkeit (%)<input
-                    name="brightness"
-                    type="number"
-                    min="1"
-                    max="100"
-                    required /></label
-                ><label
-                  >Erste LED (ab 0)<input
-                    name="first"
-                    type="number"
-                    min="0"
-                    max="299"
-                    required /></label
-                ><label
-                  >Tastenanzahl<input
-                    name="keys"
-                    type="number"
-                    min="1"
-                    max="88"
-                    required /></label
-                ><label
-                  >Erste MIDI-Note<input
-                    name="baseNote"
-                    type="number"
-                    min="0"
-                    max="127"
-                    required /></label
-                ><label
-                  >Reihenfolge<select name="reversed">
-                    <option value="false">Normal</option>
-                    <option value="true">Umgekehrt</option>
-                  </select></label
-                >
-              </div>
-              <p class="hint">
-                WS2812B · 800 kHz · GPIO 2, 8, 9 sowie USB- und Flash-Pins sind
-                gesperrt. GPIO 4 ist empfohlen.
-              </p>
-            </article>
-            <article>
-              <div class="row">
-                <h2>Individuelle Notenzuordnung</h2>
-                <button type="button" class="secondary" id="autoMap">
-                  Fortlaufend zuordnen
-                </button>
-              </div>
-              <p>
-                Jede MIDI-Note erhält einen logischen LED-Offset ab „Erste LED“.
-                −1 deaktiviert die Note. Umgekehrte Reihenfolge spiegelt
-                anschließend den gesamten Streifen. Mehrere Noten dürfen eine
-                LED verwenden.
-              </p>
-              <div class="mapping" id="mapping"></div>
-            </article>
-            <button type="submit">Konfiguration speichern</button>
-          </form>
+          </div>
         </section>
         <section id="wifi" class="page" hidden>
           <p class="eyebrow">VERBINDUNG</p>
@@ -552,6 +665,84 @@
               Setup-WLAN-Passwort lautet immer <b>piano123</b>.
             </p>
             <button id="setup" class="secondary">Setup-AP einschalten</button>
+          </article>
+        </section>
+        <section id="imports" class="page" hidden>
+          <p class="eyebrow">DEINE MIDI-SAMMLUNG</p>
+          <h1>Import-Einstellungen</h1>
+          <article>
+            <h2>Nextcloud-Verzeichnis</h2>
+            <p>
+              Einmal das feste MIDI-Verzeichnis hinterlegen. Die enthaltenen
+              MIDIs erscheinen beim Öffnen des Trainings in der Liste.
+            </p>
+            <form id="cloudSettingsForm">
+              <div class="fields">
+                <label
+                  >WebDAV-Verzeichnisadresse<input
+                    id="cloudFolder"
+                    type="url"
+                    maxlength="512"
+                    placeholder="https://cloud.example/remote.php/dav/files/benutzer/MIDI/"
+                  /><small
+                    >Die vollständige Adresse des Ordners, nicht die
+                    Nextcloud-Startseite. Leer speichern deaktiviert die
+                    Quelle.</small
+                  ></label
+                >
+                <label
+                  >Benutzer<input
+                    id="cloudUser"
+                    maxlength="128"
+                    autocomplete="username"
+                /></label>
+                <label
+                  >Nextcloud-App-Passwort<input
+                    id="cloudPassword"
+                    type="password"
+                    maxlength="256"
+                    autocomplete="new-password"
+                  /><small id="cloudPasswordHint"
+                    >Leer lassen, um ein gespeichertes Passwort
+                    beizubehalten.</small
+                  ></label
+                >
+              </div>
+              <label class="check-option"
+                ><input id="clearCloudPassword" type="checkbox" /> Gespeichertes
+                Nextcloud-Passwort löschen</label
+              >
+              <details>
+                <summary>Eigenes CA-Zertifikat (optional)</summary>
+                <p class="hint">
+                  Für eine private Zertifizierungsstelle: öffentliches
+                  CA-Zertifikat als PEM. Sonst wird der mitgelieferte
+                  Zertifikatsspeicher verwendet. Leer lassen behält ein
+                  gespeichertes Zertifikat.
+                </p>
+                <textarea
+                  id="cloudCa"
+                  rows="4"
+                  maxlength="4096"
+                  placeholder="-----BEGIN CERTIFICATE-----"
+                ></textarea
+                ><label class="check-option"
+                  ><input id="clearCloudCa" type="checkbox" /> Gespeichertes
+                  CA-Zertifikat löschen</label
+                >
+                <p id="cloudCaHint" class="hint"></p>
+              </details>
+              <button type="submit">Verzeichnis speichern</button>
+            </form>
+            <p id="cloudSettingsResult" role="status"></p>
+            <p class="hint">
+              Zugriff per WebDAV mit Nextcloud-Benutzer und App-Passwort.
+              Öffentliche Ordner können über ihre WebDAV-Adresse eingebunden
+              werden; bei passwortgeschützten Freigaben hängt der Benutzername
+              vom verwendeten Nextcloud-Endpunkt ab. HTTPS-Zertifikate werden
+              geprüft. Die gespeicherten Passwörter werden nicht zurück an den
+              Browser gesendet.
+            </p>
           </article>
         </section>
         <section id="midi" class="page" hidden>

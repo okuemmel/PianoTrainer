@@ -176,3 +176,71 @@ test("browser parser handles more than 20000 events without sending the whole so
   assert.equal(result.steps.length, 128);
   assert.equal(result.startStep, 20000);
 });
+
+test("listening preserves note lengths and tempo changes without the 128-step training limit", () => {
+  const data = file([
+    [
+      0,
+      255,
+      81,
+      3,
+      7,
+      161,
+      32,
+      0,
+      144,
+      60,
+      100,
+      ...vlq(480),
+      128,
+      60,
+      0,
+      0,
+      255,
+      81,
+      3,
+      15,
+      66,
+      64,
+      0,
+      144,
+      62,
+      90,
+      ...vlq(480),
+      128,
+      62,
+      0,
+      ...end,
+    ],
+  ]);
+  const result = parse(data, { performanceOnly: true });
+  assert.deepEqual(result.notes, [
+    { note: 60, velocity: 100, time: 0, duration: 0.5 },
+    { note: 62, velocity: 90, time: 0.5, duration: 1 },
+  ]);
+  assert.equal(result.duration, 1.5);
+  const track = [];
+  for (let i = 0; i < 200; i++)
+    track.push(...vlq(i ? 120 : 0), 144, 60, 100, 60, 128, 60, 0);
+  track.push(...end);
+  assert.equal(
+    parse(file([track]), { performanceOnly: true }).notes.length,
+    200,
+  );
+});
+test("listening keeps overlapping channels independent and repairs missing note offs", () => {
+  const a = [0, 144, 60, 100, ...vlq(480), 128, 60, 0, ...end],
+    b = [0, 145, 60, 80, ...vlq(960), 129, 60, 0, ...end];
+  const result = parse(file([a, b]), { performanceOnly: true });
+  assert.equal(result.notes[0].duration, 0.5);
+  assert.equal(result.notes[1].duration, 1);
+  const unfinished = parse(file([[0, 144, 60, 100, ...end]]), {
+    performanceOnly: true,
+  });
+  assert.equal(unfinished.notes[0].duration, 0.5);
+  assert.equal(
+    parse(file([a, b]), { performanceOnly: true, channel: 2, transpose: 12 })
+      .notes[0].note,
+    72,
+  );
+});

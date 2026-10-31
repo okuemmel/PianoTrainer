@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "LibrarySettings.h"
 #include "NetworkSettings.h"
 #include "TrainerLogic.h"
 void setUp() {}
@@ -118,8 +119,27 @@ void hostname_boundaries() {
     TEST_ASSERT_FALSE(validHostname(name));
   TEST_ASSERT_FALSE(validHostname(std::string_view("piano\0suffix", 12)));
 }
+void library_paths() {
+  TEST_ASSERT_TRUE(validCollectionPath("/midi/MIDI/song.mid"));
+  for (const auto* path : {"https://other.example/a.mid", "/download/a.mid", "/midi/../secret.mid",
+                           "/midi/%252e%252e/a.mid", "/midi/a.mid?x=1", "/midi/a%2Fb.mid"})
+    TEST_ASSERT_FALSE(validCollectionPath(path));
+  TEST_ASSERT_TRUE(validLibraryUrl("https://cloud.example/remote.php/dav/files/user/MIDI/"));
+  TEST_ASSERT_TRUE(validLibraryUrl("http://192.168.1.2:8765/MIDI/"));
+  for (const auto* url :
+       {"ftp://cloud/MIDI/", "https://user:pass@cloud/MIDI/", "https://cloud/MIDI/?token=x",
+        "https:///MIDI/", "https://cloud/a b/", "https://cloud/\\evil"})
+    TEST_ASSERT_FALSE(validLibraryUrl(url));
+  TEST_ASSERT_TRUE(validMidiFilename("Übung 1.MID"));
+  for (const auto* name : {"../a.mid", "a/b.mid", "a\\b.mid", "a.txt", ".mid"})
+    TEST_ASSERT_FALSE(validMidiFilename(name));
+  TEST_ASSERT_FALSE(validMidiFilename(std::string_view("a.mid\0x", 7)));
+  TEST_ASSERT_EQUAL_STRING("My%20Song%23%C3%BC.mid", libraryUrlEncode("My Song#ü.mid").c_str());
+  TEST_ASSERT_EQUAL_STRING("https://cloud:8443", libraryOrigin("https://cloud:8443/dir/").c_str());
+}
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(library_paths);
   RUN_TEST(hostname_boundaries);
   RUN_TEST(defaults_valid);
   RUN_TEST(gpio_allowlist);

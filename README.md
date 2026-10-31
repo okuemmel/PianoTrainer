@@ -6,7 +6,24 @@ Der Trainer soll dabei helfen, **Klavier oder Keyboard zu lernen**. Dazu wird ei
 
 Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mit 4 MB Flash** und einen WS2812B-Streifen. Die Firmware bietet WLAN-Einrichtung, lokale deutsche Weboberfläche, persistente LED-Konfiguration, Animationen und eine virtuelle, mehrstimmige MIDI-Tastatur. Für Phase 1 wird kein MIDI-Kabel benötigt.
 
+## Aufbau am Keyboard
+
+![Illustration: LED-Leiste auf dem Keyboard mit Trainer und Smartphone](docs/images/keyboard-setup.png)
+
+Die Leiste auf einem **feststehenden Gehäuseteil direkt oberhalb der Tasten** befestigen, sodass alle Tasten frei beweglich bleiben. Eine ablösbare Schutz-/Klebeschicht verwenden und die Positionen danach in der LED-Zuordnung kalibrieren. Nicht benötigte LEDs können unzugeordnet bleiben. Die Bilder sind KI-generierte Aufbauillustrationen; die Telefonansicht ist symbolisch und kein Screenshot.
+
+<details>
+<summary>Montagedetail anzeigen</summary>
+
+![Illustration: ablösbare Befestigung oberhalb der Tasten](docs/images/strip-mounting.png)
+
+</details>
+
 ## Hardware anschließen
+
+![Funktionsschema: GPIO 4 über Pegelwandler und 330 Ohm an DIN, externe 5 V und gemeinsame Masse](docs/images/wiring.svg)
+
+Das Schema zeigt die elektrischen Verbindungen, keine maßstabsgetreue Pinbelegung. [Bildquellen und verwendete Generierungs-Prompts](docs/images/GENERATED.md).
 
 | Verbindung | Anschluss |
 |---|---|
@@ -74,7 +91,7 @@ Zur Eingrenzung der gemeldeten iPhone/iPad-Verbindungsprobleme ist die Sendeleis
 
 ## Webserver-Log lesen
 
-Beim Start prüft die Firmware die drei Webdateien mit Dateigröße und meldet den HTTP-Start auf Port 80. Beim Öffnen der Oberfläche erscheinen `[HTTP]`-Zeilen:
+Beim Start prüft die Firmware die lokalen Webdateien mit Dateigröße und meldet den HTTP-Start auf Port 80. Beim Öffnen der Oberfläche erscheinen `[HTTP]`-Zeilen:
 
 - `200`: HTML, CSS oder JavaScript wurden gesendet; die Bytezahlen zeigen den übertragenen Umfang.
 - `401, Webanmeldung erforderlich`: Der Browser muss sich mit `admin` und dem seriell ausgegebenen Gerätepasswort anmelden.
@@ -181,7 +198,7 @@ node --check data/app.js
 
 Die konkreten Ergebnisse sowie verbleibende Hardwareprüfungen stehen in [TESTING.md](TESTING.md).
 
-Geplante Importquellen (Nextcloud-Verzeichnis und MIDIsss-Suche) stehen in [TODO.md](TODO.md).
+Der Umsetzungsstand der Importquellen (Nextcloud und MIDIsss) sowie offene manuelle Prüfungen stehen in [TODO.md](TODO.md).
 
 ## Technische Quellen
 
@@ -190,7 +207,7 @@ Geplante Importquellen (Nextcloud-Verzeichnis und MIDIsss-Suche) stehen in [TODO
 - [PlatformIO C3-Boardprofil](https://docs.platformio.org/en/latest/boards/espressif32/esp32-c3-devkitm-1.html): CPU, Speicher und Arduino-Unterstützung.
 - [Adafruit NeoPixel 1.12.5 ESP32-Ausgabe](https://github.com/adafruit/Adafruit_NeoPixel/blob/1.12.5/esp.c): RMT-Implementierung.
 
-Über „Klaviertöne (Browser-Synthesizer)“ lässt sich ein lokaler, mehrstimmiger Web-Audio-Synthesizer für die virtuelle Tastatur einschalten. Der Schalter aktiviert Audio per Benutzeraktion, auch für Browser mit Autoplay-Sperre. Die Ausgabe erfolgt über Smartphone/Computer und benötigt weder Internet noch ESP32-Audiohardware. Der Klang verwendet Sinus-Obertöne und eine abklingende Hüllkurve, keine aufgenommenen Klaviersamples. Loslassen, Fokusverlust, Seitenwechsel und Abschalten beenden die Töne. Dies spielt die selbst gedrückten Tasten, keine automatische MIDI-Begleitung.
+Über „Klaviertöne (Browser-Synthesizer)“ lässt sich ein lokaler, mehrstimmiger Web-Audio-Synthesizer für die virtuelle Tastatur einschalten. Der Schalter aktiviert Audio per Benutzeraktion, auch für Browser mit Autoplay-Sperre. Die Ausgabe erfolgt über Smartphone/Computer und benötigt weder Internet noch ESP32-Audiohardware. Der Klang verwendet Sinus-Obertöne und eine abklingende Hüllkurve, keine aufgenommenen Klaviersamples. Loslassen, Fokusverlust, Seitenwechsel und Abschalten beenden die Töne. Dieser Schalter vertont selbst gedrückte Tasten. Zusätzlich lassen sich vollständige MIDI-Dateien über die separate Anhörfunktion abspielen.
 
 ### Optionale Notenvorschau (Firmware 1.3.0)
 
@@ -211,3 +228,29 @@ Der Hostname lässt sich separat speichern, ohne die WLAN-Zugangsdaten neu einzu
 Bei Verbindung zum Router startet der mDNS-Responder samt HTTP-Dienstankündigung. Dann ist der Trainer im selben lokalen Netzwerk beispielsweise unter `http://midi-trainer.local/` oder nach Umbenennung `http://piano.local/` erreichbar. Das setzt funktionierende Multicast-/mDNS-Unterstützung im Netzwerk und Client voraus; die IP-Adresse bleibt als Alternative sichtbar. Beim WLAN-Abbruch wird mDNS beendet, nach Wiederverbindung erneut gestartet. Im Setup-WLAN bleibt `http://192.168.4.1/` die Einstiegsadresse. Quellen: [Espressif Wi-Fi API](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/wifi.html), [Espressif mDNS-Dienst](https://docs.espressif.com/projects/esp-protocols/mdns/docs/latest/en/index.html); die Implementierung verwendet die lokal installierten 2.0.17-Schnittstellen.
 
 DDNS für eine öffentliche Internetadresse ist eine andere Funktion und derzeit nicht implementiert. Für den lokalen Zugriff per Gerätename ist mDNS vorgesehen.
+
+## MIDI-Bibliothek: Nextcloud, MIDIsss und MIDICollection
+
+Unter **Import-Einstellungen** einmal die vollständige WebDAV-Adresse deines Nextcloud-MIDI-Verzeichnisses hinterlegen, beispielsweise `https://cloud.example/remote.php/dav/files/benutzer/MIDI/`, sowie Benutzer und Nextcloud-App-Passwort. Beim Öffnen von Training werden die unmittelbar darin enthaltenen `.mid`/`.midi`-Dateien automatisch aufgelistet. „Nextcloud aktualisieren“ liest den festen Ordner erneut. Es gibt keine Ordnerauswahl pro Import. Passwörter bleiben auf dem Gerät und werden nicht per API zurückgegeben. Leer gelassene Passwort-/CA-Felder behalten bestehende Werte beim gleichen Server/Benutzer; beim Wechsel zu einem anderen Server oder Benutzer werden sie ohne neue Eingabe gelöscht. Löschen ist auch über die jeweiligen Kontrollkästchen möglich. Ein leeres Verzeichnis deaktiviert die Quelle.
+
+Öffentliche Freigaben können über ihre WebDAV-Verzeichnisadresse verwendet werden. Der aktuelle Nextcloud-Endpunkt dafür lautet `/public.php/dav/files/{Freigabetoken}/`; für passwortgeschützte Freigaben ab Nextcloud 29 wird als Benutzer `anonymous` und als Passwort das Freigabepasswort verwendet. Bei älteren Installationen ist der passende WebDAV-Endpunkt zu verwenden. Quelle: [Nextcloud WebDAV-Grundlagen](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/basic.html).
+
+Unter Training steht zusätzlich eine **MIDIsss-Suche** mit Titel, Beschreibung und Bewertung zur Verfügung. Mit **Übernehmen** wird eine ausgewählte Datei in denselben lokalen MIDI-Importer wie bei Dateiauswahl übernommen. Kanal, Transposition, Tastaturfilter und Abschnittsauswahl bleiben verfügbar. Mit **Anhören** wird die Datei stattdessen als Klangreferenz wiedergegeben. Die MIDIsss-Anbindung verwendet die dokumentierten Such- und Downloadaktionen: [MIDIsss API](https://midisss.com/api_explain.php).
+
+Im selben Suchfeld lässt sich **MIDICollection** auswählen. Die Suche unterstützt mehrere Ergebnisseiten und verwendet das öffentliche Suchformular sowie die dort angegebenen MIDI-Dateipfade auf [MIDICollection](https://midicollection.com/). Es handelt sich um eine HTML-Anbindung ohne zugesicherte API; Änderungen an der Quellseite können Anpassungen erfordern. Externe Downloadhosts, Pfadwechsel außerhalb `/midi/` und Weiterleitungen werden nicht übernommen.
+
+Downloads laufen über einen einzelnen Hintergrundauftrag auf dem ESP32 und einen 16-KiB-Stream-Puffer. Der Browser holt wiederholbare Blöcke von höchstens 4096 Bytes ab; die vollständige Datei wird weder im ESP32-RAM noch im Flash gespeichert. Damit ist keine CORS-Freigabe des externen Servers erforderlich. Dateilimit: 2 MiB; Verzeichnis-/Suchantworten: 256 KiB; maximal 1000 angezeigte Nextcloud-Dateien oder 200 Suchtreffer. Die HTTP-Verbindung hat begrenzte Wartezeiten; der ganze Auftrag ist auf etwa drei Minuten begrenzt. Abbrechen, Offline-Zustände und Zugriffsfehler werden angezeigt. Beim Download pausiert eine laufende Übung; ein neuer Trainingsstart wartet auf den Download-Abschluss.
+
+HTTPS verwendet den Zertifikatsspeicher des ESP32-SDK oder das optional gespeicherte öffentliche CA-Zertifikat für eine private Nextcloud. Zertifikatsprüfung wird nicht abgeschaltet. Bei noch fehlender Uhrzeit wird vor HTTPS eine NTP-Synchronisation versucht. Netzwerkzugriff auf den Server und gegebenenfalls Internet/NTP müssen verfügbar sein. HTTP-Verzeichnisadressen sind für eigene lokale Server ebenfalls möglich. Umleitungen werden nicht automatisch verfolgt; deshalb die endgültige WebDAV-Ordneradresse einstellen.
+
+## MIDI-Dateien anhören
+
+In der Bibliothek **Anhören** wählen oder eine lokale Datei auswählen und **MIDI anhören** oben neben **Übung starten** drücken. Der lokale Browser-Synthesizer spielt die ganze Datei im Originaltempo inklusive Tempoänderungen, Note-Off-Dauern und Anschlagstärken. Die aktuelle Kanalwahl und Transposition werden angewendet, die 128-Schritt-Grenze und der Tastaturfilter des Trainings gelten für die Wiedergabe nicht. Führende Stille wird abgeschnitten. Pause/Fortsetzen, Stopp und Lautstärke sind verfügbar. Die LEDs zeigen dabei die gerade klingenden, zugeordneten Noten; die virtuelle Anzeige übernimmt den Geräte-Ausgabepuffer. Dafür gibt es einen eigenen Wiedergabe-Endpunkt, der keine Trainingsanschläge wertet. Vor dem Anhören wird eine laufende Übung pausiert. Pause, Stopp und Fokusverlust beenden die Wiedergabe-LEDs; ohne weitere Aktualisierung endet die LED-Vorschau nach drei Sekunden. WLAN-Latenz kann einen sichtbaren Versatz zum Ton verursachen.
+
+Der Klang ist ein synthetischer Klavierklang, keine Aufnahme und kein General-MIDI-Soundfont. Originalinstrumentierung, Pitch Bend und Pedal werden nicht nachgebildet; maximal 32 Synthesizerstimmen spielen gleichzeitig. Fehlen Note-Off-Ereignisse, werden die Noten begrenzt beendet. Dateien bleiben auf 2 MiB / 250.000 Ereignisse / Format 0–1 / PPQN beschränkt; die Wiedergabe ist auf zwei Stunden begrenzt. Bei Fokusverlust oder Seitenwechsel stoppt die Ausgabe. Die Audiofreigabe erfolgt beim Antippen einer Wiedergabe-Schaltfläche; es werden keine Samples aus dem Internet geladen.
+
+## Kompakte Oberfläche
+
+LED-Aufbau und LED-Tests stehen gemeinsam unter **LEDs · Aufbau & Test**. Große Bildschirme zeigen die Bereiche nebeneinander, auf kleinen Bildschirmen stehen sie untereinander. Die 128 Notenzuordnungen sind aufklappbar. Abstände, Eingabefelder und Überschriften sind kompakter; die Navigation bleibt ausblendbar. Alte Links auf `#config` öffnen die gemeinsame LED-Seite weiter.
+
+Auf Handy und Tablet (bis 1000 Pixel Breite) ist das Menü beim ersten Besuch eingeklappt; eine gespeicherte Menüwahl bleibt erhalten. Übungsoptionen, Bibliothek und Dateiimport lassen sich einzeln aufklappen. Start und MIDI-Anhören stehen gemeinsam oben, Wiedergabe-Pause und Stopp erscheinen bei laufender/pausierter Wiedergabe. Kleinere Kartenabstände und kompakte Kennzahlen schaffen Platz für Tastatur und Notenvorschau. Touch-Bedienelemente bleiben mindestens 44 Pixel hoch; Eingabefelder verwenden auf kleinen Bildschirmen 16-Pixel-Schrift, um automatisches Zoomen zu vermeiden.

@@ -16,12 +16,19 @@ class TrainingController {
   void receive(const MidiEvent& event);
   void release();
   void loop();
+  void preview(const std::array<uint8_t, 128>& notes);
+  void stopPreview();
+  bool previewActive() const {
+    return previewing;
+  }
   void status(JsonObject object) const;
 
  private:
   LedController& leds;
   const LedConfig& config;
-  bool ownsLeds = false, lastPulse = false;
+  bool ownsLeds = false, lastPulse = false, previewing = false;
+  std::array<uint8_t, 128> previewHeld{};
+  uint32_t lastPreviewAt = 0;
   uint32_t renderedRevision = UINT32_MAX, errorAt = 0;
   void render();
 };

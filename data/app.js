@@ -7,6 +7,18 @@ let config = null,
 let commandQueue = Promise.resolve();
 const held = new Map();
 let lastScoreKey = "";
+let libraryBusy = false,
+  librarySettings = null,
+  cloudListLoaded = false;
+let remoteMidi = null;
+const libraryClient = new window.MidiLibrary.Client(api);
+const midiPlayer = new window.MidiPlayer.Player(renderPlayback);
+let playbackName = "";
+let playbackLedActive = false,
+  playbackLedKey = "",
+  playbackLedSentAt = 0,
+  playbackLedPending = null,
+  playbackLedSending = false;
 let audioContext = null;
 const voices = new Map();
 let lastLedSnapshot = null,
@@ -26,9 +38,11 @@ function setNavigationCollapsed(collapsed) {
   toggle.setAttribute("aria-label", label);
   toggle.title = label;
 }
-let navigationCollapsed = false;
+let navigationCollapsed =
+  window.matchMedia?.("(max-width: 1000px)").matches || false;
 try {
-  navigationCollapsed = localStorage.getItem("navigationCollapsed") === "true";
+  const preference = localStorage.getItem("navigationCollapsed");
+  if (preference !== null) navigationCollapsed = preference === "true";
 } catch {}
 setNavigationCollapsed(navigationCollapsed);
 $("#toggleNavigation").onclick = () => {
@@ -99,6 +113,7 @@ function noteCommand(body) {
 }
 function route() {
   let hash = location.hash.slice(1) || "dashboard";
+  if (hash === "config") hash = "control";
   if (!document.getElementById(hash)?.classList.contains("page"))
     hash = "dashboard";
   document.querySelectorAll(".page").forEach((p) => (p.hidden = p.id !== hash));
@@ -110,7 +125,13 @@ function route() {
     hash === "training" ? "#trainingKeyboardMount" : "#freeKeyboardMount",
   );
   if (mount && $("#keyboard")) mount.append($("#ledPreview"));
-  if (hash !== "training") pauseActiveTraining();
+  if (hash !== "training") {
+    midiPlayer.stop();
+    pauseActiveTraining();
+  }
+  if (hash === "training") loadCloudListOnce();
+  if (hash !== "training" && libraryBusy)
+    libraryClient.cancel().catch(() => {});
 }
 window.addEventListener("hashchange", route);
 function noteName(n) {
@@ -140,6 +161,7 @@ function keyboard() {
     key.setAttribute("aria-label", noteName(n) + ", MIDI " + n);
     key.addEventListener("pointerdown", (e) => {
       e.preventDefault();
+      midiPlayer.stop();
       if (e.isTrusted) key.setPointerCapture(e.pointerId);
       if (held.has(e.pointerId)) return;
       const channel = Number($("#sendChannel").value),
@@ -209,11 +231,13 @@ function release() {
   return noteCommand({ release: true });
 }
 window.addEventListener("blur", () => {
+  midiPlayer.stop();
   release();
   pauseActiveTraining();
 });
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
+    midiPlayer.stop();
     release();
     pauseActiveTraining();
   }
@@ -540,10 +564,12 @@ async function poll() {
     ].includes(status?.mode);
     setTimeout(
       poll,
-      location.hash === "#training" ||
-        (location.hash === "#dashboard" && animated)
-        ? 180
-        : 2000,
+      libraryBusy
+        ? 1200
+        : location.hash === "#training" ||
+            (location.hash === "#dashboard" && animated)
+          ? 180
+          : 2000,
     );
   }
 }
@@ -567,6 +593,7 @@ run(async () => {
   renderConfig();
   const lesson = await api("training");
   if (lesson.training) renderTraining(lesson.training);
+  await loadLibrarySettings();
   route();
   if (!status.connected) location.hash = "wifi";
   poll();
@@ -576,6 +603,7 @@ function trainingRunning() {
   return trainingView && ["playing", "countin"].includes(trainingView.state);
 }
 async function trainingCommand(body) {
+  if (body.command !== "pause") midiPlayer.stop();
   await release();
   await commandQueue;
   const reply = await api("training", body);
@@ -592,6 +620,7 @@ function pauseActiveTraining() {
 $("#trainingForm").onsubmit = (e) => {
   e.preventDefault();
   run(async () => {
+    midiPlayer.stop();
     const preset = $("#trainingPreset").value;
     if (preset === "custom" && !importedSteps)
       throw Error("Zuerst eine MIDI-Datei importieren.");
@@ -652,10 +681,11 @@ function renderTraining(t) {
   $("#trainingResume").disabled = t.state !== "paused";
   document.querySelectorAll(".key").forEach((key) => {
     const n = Number(key.dataset.noteValue);
+    key.classList.toggle("playback", !!t.preview && (t.held || []).includes(n));
     key.classList.toggle("target", (t.expected || []).includes(n));
     key.classList.toggle(
       "wrong",
-      t.lastErrorNote === n && (t.held || []).includes(n),
+      !t.preview && t.lastErrorNote === n && (t.held || []).includes(n),
     );
   });
   renderScore();
@@ -691,58 +721,56 @@ $("#trainingMode").onchange = () => {
   $("#songTimed").disabled = $("#trainingMode").value !== "song";
 };
 $("#trainingMode").onchange();
-$("#importMidi").onclick = () =>
-  run(async () => {
-    importedSteps = null;
-    $('#trainingPreset option[value="custom"]').disabled = true;
-    $("#importResult").textContent = "";
-    const file = $("#midiFile").files[0];
-    if (!file) throw Error("Bitte eine MIDI-Datei auswählen.");
-    if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
-    const result = window.MidiFile.parse(await file.arrayBuffer(), {
-      channel: Number($("#importChannel").value),
-      transpose: Number($("#importTranspose").value),
-      startStep: Number($("#importStart").value) - 1,
-      minNote: $("#importRange").checked ? config.baseNote : 0,
-      maxNote: $("#importRange").checked
-        ? config.baseNote + config.keys - 1
-        : 127,
-    });
-    importedSteps = result.steps;
-    const option = $('#trainingPreset option[value="custom"]');
-    option.disabled = false;
-    option.textContent = "MIDI: " + file.name;
-    $("#trainingPreset").value = "custom";
-    $("#trainingMode").value = "song";
-    $("#trainingMode").onchange();
-    $("#trainingBpm").value = Math.max(40, Math.min(200, result.bpm));
-    $("#importResult").textContent =
-      file.name +
-      ": " +
-      result.steps.length +
-      " Einsätze (" +
-      (result.startStep + 1) +
-      "–" +
-      (result.startStep + result.steps.length) +
-      " von " +
-      result.totalSteps +
-      "). Tempo: " +
-      result.bpm +
-      " BPM (Übung: " +
-      $("#trainingBpm").value +
-      " BPM). Zum Üben oben starten." +
-      (result.tempoChanges ? " Tempoänderungen werden vereinheitlicht." : "") +
-      (result.quantized ? " Einsätze auf 1/32-Noten gerastert." : "") +
-      (result.droppedNotes
-        ? " " +
-          result.droppedNotes +
-          " Noten außerhalb der Tastatur ausgelassen."
-        : "") +
-      " Belegte Kanäle: " +
-      result.channels.join(", ") +
-      ". Für den nächsten Abschnitt Start-Einsatz ändern und erneut übernehmen.";
-    $("#importStart").max = result.totalSteps;
+async function importSelectedMidi() {
+  importedSteps = null;
+  $('#trainingPreset option[value="custom"]').disabled = true;
+  $("#importResult").textContent = "";
+  const file = remoteMidi || $("#midiFile").files[0];
+  if (!file) throw Error("Bitte eine MIDI-Datei auswählen.");
+  if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
+  const result = window.MidiFile.parse(await file.arrayBuffer(), {
+    channel: Number($("#importChannel").value),
+    transpose: Number($("#importTranspose").value),
+    startStep: Number($("#importStart").value) - 1,
+    minNote: $("#importRange").checked ? config.baseNote : 0,
+    maxNote: $("#importRange").checked
+      ? config.baseNote + config.keys - 1
+      : 127,
   });
+  importedSteps = result.steps;
+  const option = $('#trainingPreset option[value="custom"]');
+  option.disabled = false;
+  option.textContent = "MIDI: " + file.name;
+  $("#trainingPreset").value = "custom";
+  $("#trainingMode").value = "song";
+  $("#trainingMode").onchange();
+  $("#trainingBpm").value = Math.max(40, Math.min(200, result.bpm));
+  $("#importResult").textContent =
+    file.name +
+    ": " +
+    result.steps.length +
+    " Einsätze (" +
+    (result.startStep + 1) +
+    "–" +
+    (result.startStep + result.steps.length) +
+    " von " +
+    result.totalSteps +
+    "). Tempo: " +
+    result.bpm +
+    " BPM (Übung: " +
+    $("#trainingBpm").value +
+    " BPM). Zum Üben oben starten." +
+    (result.tempoChanges ? " Tempoänderungen werden vereinheitlicht." : "") +
+    (result.quantized ? " Einsätze auf 1/32-Noten gerastert." : "") +
+    (result.droppedNotes
+      ? " " + result.droppedNotes + " Noten außerhalb der Tastatur ausgelassen."
+      : "") +
+    " Belegte Kanäle: " +
+    result.channels.join(", ") +
+    ". Für den nächsten Abschnitt Start-Einsatz ändern und erneut übernehmen.";
+  $("#importStart").max = result.totalSteps;
+}
+$("#importMidi").onclick = () => run(importSelectedMidi);
 
 function renderLedPreview(snapshot, force = false) {
   const { count, frame, pin, brightness } = snapshot;
@@ -1136,4 +1164,399 @@ function renderScore() {
         : steps[0].notes.length + " Töne"
       : "Pause") +
     (t.state === "paused" ? " · pausiert" : "");
+}
+
+// Shared library UI: all sources feed the same local MIDI parser above.
+function setLibraryBusy(busy) {
+  libraryBusy = busy;
+  document
+    .querySelectorAll(
+      "#cloudRefresh, #midiSearchForm button, .midi-library-list button, #cloudSettingsForm button, #searchPager button",
+    )
+    .forEach((button) => (button.disabled = busy));
+  $("#libraryCancel").hidden = !busy;
+  $("#searchPrevious").disabled = busy || onlineSearch.page <= 1;
+  $("#searchNext").disabled = busy || onlineSearch.page >= onlineSearch.pages;
+}
+async function loadLibrarySettings() {
+  try {
+    librarySettings = await api("library/config");
+    $("#cloudFolder").value = librarySettings.folder || "";
+    $("#cloudUser").value = librarySettings.user || "";
+    $("#cloudPasswordHint").textContent = librarySettings.hasPassword
+      ? "Passwort gespeichert. Leer lassen zum Beibehalten."
+      : "Noch kein Passwort gespeichert.";
+    $("#cloudCaHint").textContent = librarySettings.hasCa
+      ? "Eigenes CA-Zertifikat gespeichert."
+      : "Mitgelieferter Zertifikatsspeicher aktiv.";
+    if (!librarySettings.folder)
+      $("#libraryStatus").textContent =
+        "Nextcloud-Verzeichnis in den Import-Einstellungen hinterlegen oder MIDIsss durchsuchen.";
+  } catch (error) {
+    $("#libraryStatus").textContent = error.message;
+  }
+}
+function loadCloudListOnce() {
+  if (!config || !librarySettings?.folder || cloudListLoaded || libraryBusy)
+    return;
+  cloudListLoaded = true;
+  run(refreshCloud);
+}
+async function libraryDownload(request) {
+  if (libraryBusy) throw Error("Bitte den laufenden Download abwarten.");
+  midiPlayer.stop();
+  setLibraryBusy(true);
+  try {
+    await commandQueue;
+    return await libraryClient.run(request, (received, total) => {
+      $("#libraryStatus").textContent =
+        "Lade " +
+        Math.round(received / 1024) +
+        " KiB" +
+        (total > 0 ? " von " + Math.round(total / 1024) + " KiB" : " …");
+    });
+  } catch (error) {
+    $("#libraryStatus").textContent = error.message;
+    throw error;
+  } finally {
+    setLibraryBusy(false);
+  }
+}
+function renderLibraryList(id, result, source) {
+  const list = $(id);
+  list.replaceChildren();
+  result.files.forEach((file) => {
+    const row = document.createElement("li"),
+      text = document.createElement("div"),
+      title = document.createElement("strong"),
+      detail = document.createElement("small"),
+      button = document.createElement("button");
+    title.textContent = file.name;
+    detail.textContent =
+      source === "nextcloud"
+        ? file.size !== null
+          ? Math.round(file.size / 1024) + " KiB"
+          : "MIDI-Datei"
+        : (file.notes || "") +
+          (file.rating !== null ? " · Bewertung: " + file.rating : "");
+    text.append(title, detail);
+    button.type = "button";
+    button.textContent = "Übernehmen";
+    button.className = "secondary";
+    button.onclick = () =>
+      run(async () => {
+        if (file.size > 2097152)
+          throw Error("MIDI-Datei ist größer als 2 MiB.");
+        const bytes = await libraryDownload(
+          source === "nextcloud"
+            ? { source, action: "file", name: file.name }
+            : {
+                source,
+                action: "file",
+                id: file.id,
+                ...(source === "midicollection" ? { path: file.path } : {}),
+              },
+        );
+        remoteMidi = {
+          name: file.name,
+          size: bytes.length,
+          arrayBuffer: async () => bytes.buffer,
+        };
+        $("#midiFile").value = "";
+        $("#importStart").value = "1";
+        try {
+          await importSelectedMidi();
+        } catch (error) {
+          $("#importResult").textContent = error.message;
+          $("#libraryStatus").textContent = error.message;
+          throw error;
+        }
+        $("#libraryStatus").textContent =
+          "Geladen: " +
+          file.name +
+          ". Kanal, Transposition und Abschnitt unten einstellen; erneut übernehmen, um die Auswahl anzuwenden.";
+      });
+    const listen = document.createElement("button");
+    listen.type = "button";
+    listen.className = "secondary";
+    listen.textContent = "Anhören";
+    listen.onclick = () => {
+      let unlock;
+      try {
+        unlock = midiPlayer.unlock();
+      } catch (error) {
+        toast(error.message, true);
+        return;
+      }
+      run(async () => {
+        await unlock;
+        midiPlayer.stop();
+        const bytes = await libraryDownload(
+          source === "nextcloud"
+            ? { source, action: "file", name: file.name }
+            : {
+                source,
+                action: "file",
+                id: file.id,
+                ...(source === "midicollection" ? { path: file.path } : {}),
+              },
+        );
+        remoteMidi = {
+          name: file.name,
+          size: bytes.length,
+          arrayBuffer: async () => bytes.buffer,
+        };
+        $("#midiFile").value = "";
+        await playSelectedMidi();
+      });
+    };
+    const actions = document.createElement("div");
+    actions.className = "library-file-actions";
+    actions.append(button, listen);
+    row.append(text, actions);
+    list.append(row);
+  });
+  if (!result.files.length) {
+    const row = document.createElement("li");
+    row.textContent = "Keine MIDI-Dateien gefunden.";
+    list.append(row);
+  }
+  if (result.truncated) {
+    const row = document.createElement("li");
+    row.textContent =
+      "Liste begrenzt. Suche eingrenzen bzw. kleineren Nextcloud-Ordner verwenden.";
+    list.append(row);
+  }
+}
+async function refreshCloud() {
+  try {
+    const bytes = await libraryDownload({
+      source: "nextcloud",
+      action: "list",
+    });
+    const result = window.MidiLibrary.parseDav(
+      new TextDecoder().decode(bytes),
+      librarySettings.folder,
+    );
+    renderLibraryList("#cloudFiles", result, "nextcloud");
+    $("#libraryStatus").textContent =
+      result.files.length + " Nextcloud-MIDIs im hinterlegten Verzeichnis.";
+  } catch (error) {
+    $("#libraryStatus").textContent = error.message;
+    throw error;
+  }
+}
+$("#cloudRefresh").onclick = () => run(refreshCloud);
+$("#libraryCancel").onclick = () =>
+  run(async () => {
+    await libraryClient.cancel();
+    $("#libraryStatus").textContent = "Download wird abgebrochen …";
+  });
+let lastLibrarySearch = 0;
+let onlineSearch = { source: "midisss", query: "", page: 1, pages: 1 };
+async function searchOnline(page = 1, repeat = false) {
+  const source = repeat ? onlineSearch.source : $("#onlineSource").value;
+  const query = repeat ? onlineSearch.query : $("#midiSearch").value.trim();
+  if (!query) throw Error("Bitte einen Suchbegriff eingeben.");
+  if (Date.now() - lastLibrarySearch < 1000)
+    throw Error("Bitte kurz warten, bevor du erneut suchst.");
+  lastLibrarySearch = Date.now();
+  try {
+    const bytes = await libraryDownload({
+      source,
+      action: "search",
+      query,
+      page,
+    });
+    const text = new TextDecoder().decode(bytes);
+    const result =
+      source === "midicollection"
+        ? window.MidiLibrary.parseCollection(text)
+        : window.MidiLibrary.parseSearch(text);
+    renderLibraryList("#searchFiles", result, source);
+    onlineSearch = {
+      source,
+      query,
+      page: result.page || 1,
+      pages: result.pages || 1,
+    };
+    const name = source === "midicollection" ? "MIDICollection" : "MIDIsss";
+    $("#onlineLibraryTitle").textContent = name + "-Suchergebnisse";
+    $("#libraryStatus").textContent =
+      result.files.length + " " + name + "-Treffer auf dieser Seite.";
+    $("#searchPager").hidden = onlineSearch.pages <= 1;
+    $("#searchPageInfo").textContent =
+      "Seite " + onlineSearch.page + " / " + onlineSearch.pages;
+    $("#searchPrevious").disabled = onlineSearch.page <= 1;
+    $("#searchNext").disabled = onlineSearch.page >= onlineSearch.pages;
+  } catch (error) {
+    $("#libraryStatus").textContent = error.message;
+    throw error;
+  }
+}
+$("#midiSearchForm").onsubmit = (event) => {
+  event.preventDefault();
+  run(() => searchOnline());
+};
+$("#searchPrevious").onclick = () =>
+  run(() => searchOnline(onlineSearch.page - 1, true));
+$("#searchNext").onclick = () =>
+  run(() => searchOnline(onlineSearch.page + 1, true));
+$("#onlineSource").onchange = () => {
+  $("#searchFiles").replaceChildren();
+  $("#searchPager").hidden = true;
+  $("#onlineLibraryTitle").textContent =
+    $("#onlineSource").selectedOptions[0].textContent + "-Suchergebnisse";
+};
+$("#midiFile").onchange = () => {
+  midiPlayer.stop();
+  remoteMidi = null;
+};
+$("#cloudSettingsForm").onsubmit = (event) => {
+  event.preventDefault();
+  run(async () => {
+    let folder = $("#cloudFolder").value.trim();
+    if (folder) {
+      const url = new URL(folder);
+      if (!url.pathname.endsWith("/")) url.pathname += "/";
+      folder = url.href;
+    }
+    const body = { folder, user: $("#cloudUser").value.trim() };
+    if ($("#clearCloudPassword").checked) body.password = "";
+    else if ($("#cloudPassword").value)
+      body.password = $("#cloudPassword").value;
+    if ($("#clearCloudCa").checked) body.ca = "";
+    else if ($("#cloudCa").value.trim()) body.ca = $("#cloudCa").value.trim();
+    try {
+      await api("library/config", body);
+      $("#cloudPassword").value = "";
+      $("#cloudCa").value = "";
+      $("#clearCloudPassword").checked = false;
+      $("#clearCloudCa").checked = false;
+      cloudListLoaded = false;
+      $("#cloudFiles").replaceChildren();
+      await loadLibrarySettings();
+      $("#cloudSettingsResult").textContent =
+        "Gespeichert. Die MIDI-Liste wird beim Öffnen des Trainings geladen.";
+    } catch (error) {
+      $("#cloudSettingsResult").textContent = error.message;
+      throw error;
+    }
+  });
+};
+
+function renderPlayback(view) {
+  playbackLeds(view);
+  const format = (seconds) =>
+    Math.floor(seconds / 60) +
+    ":" +
+    String(Math.floor(seconds % 60)).padStart(2, "0");
+  $("#pauseMidi").disabled = !["playing", "paused"].includes(view.state);
+  $("#pauseMidi").textContent =
+    view.state === "paused" ? "Fortsetzen" : "Pause";
+  $("#stopMidi").disabled = !["playing", "paused"].includes(view.state);
+  $("#pauseMidi").hidden = $("#pauseMidi").disabled;
+  $("#stopMidi").hidden = $("#stopMidi").disabled;
+  const label = {
+    playing: "Spielt",
+    paused: "Pausiert",
+    completed: "Fertig",
+    stopped: "Gestoppt",
+  }[view.state];
+  $("#midiPlaybackStatus").textContent =
+    label +
+    (playbackName ? ": " + playbackName : "") +
+    " · " +
+    format(view.position) +
+    " / " +
+    format(view.duration);
+}
+async function playSelectedMidi() {
+  const file = remoteMidi || $("#midiFile").files[0];
+  if (!file) throw Error("Bitte zuerst eine MIDI-Datei auswählen.");
+  const performance = window.MidiFile.parse(await file.arrayBuffer(), {
+    performanceOnly: true,
+    channel: Number($("#importChannel").value),
+    transpose: Number($("#importTranspose").value),
+  });
+  playbackName = file.name;
+  if (trainingRunning()) await trainingCommand({ command: "pause" });
+  midiPlayer.play(performance);
+}
+$("#listenMidi").onclick = () => {
+  let unlock;
+  try {
+    unlock = midiPlayer.unlock();
+  } catch (error) {
+    toast(error.message, true);
+    return;
+  }
+  run(async () => {
+    await unlock;
+    await playSelectedMidi();
+  });
+};
+$("#pauseMidi").onclick = () => {
+  if (midiPlayer.state === "playing") midiPlayer.pause();
+  else
+    run(async () => {
+      await midiPlayer.unlock();
+      midiPlayer.resume();
+    });
+};
+$("#stopMidi").onclick = () => midiPlayer.stop();
+$("#midiVolume").oninput = () =>
+  midiPlayer.setVolume(Number($("#midiVolume").value) / 100);
+
+function appendPlaybackCommand(body) {
+  commandQueue = commandQueue
+    .catch(() => {})
+    .then(() => api("playback", body))
+    .then((reply) => {
+      if (reply.training) renderTraining(reply.training);
+    })
+    .catch((error) => {
+      toast("LED-Wiedergabe: " + error.message, true);
+    });
+  return commandQueue;
+}
+function drainPlaybackLeds() {
+  if (playbackLedSending || !playbackLedPending) return;
+  const body = playbackLedPending;
+  playbackLedPending = null;
+  playbackLedSending = true;
+  appendPlaybackCommand(body).finally(() => {
+    playbackLedSending = false;
+    drainPlaybackLeds();
+  });
+}
+function playbackLeds(view) {
+  if (view.state !== "playing") {
+    if (playbackLedActive) {
+      playbackLedActive = false;
+      playbackLedPending = null;
+      playbackLedKey = "";
+      appendPlaybackCommand({ active: false });
+    }
+    return;
+  }
+  const notes = new Map();
+  for (const note of view.notes || [])
+    notes.set(note.note, Math.max(notes.get(note.note) || 0, note.velocity));
+  const snapshot = [...notes]
+    .sort((a, b) => a[0] - b[0])
+    .map(([note, velocity]) => ({ note, velocity }));
+  const key = JSON.stringify(snapshot),
+    now = Date.now();
+  if (
+    !playbackLedActive ||
+    key !== playbackLedKey ||
+    now - playbackLedSentAt >= 800
+  ) {
+    playbackLedActive = true;
+    playbackLedKey = key;
+    playbackLedSentAt = now;
+    playbackLedPending = { active: true, notes: snapshot };
+    drainPlaybackLeds();
+  }
 }

@@ -65,7 +65,7 @@ void TrainerWebServer::status() {
   d["flash"] = ESP.getFlashChipSize();
   d["mode"] = leds.mode;
   d["filesystem"] = fsReady;
-  d["firmware"] = "1.4.0";
+  d["firmware"] = "1.7.0";
   d["keys"] = config.led.keys;
   d["baseNote"] = config.led.baseNote;
   d["channel"] = config.led.channel;
@@ -108,7 +108,9 @@ void TrainerWebServer::file(const char* path, const char* mime) {
 }
 void TrainerWebServer::begin(bool filesystemReady) {
   fsReady = filesystemReady;
-  for (const char* path : {"/index.html", "/style.css", "/midi-file.js", "/app.js"}) {
+  libraryRoutes();
+  for (const char* path : {"/index.html", "/style.css", "/midi-file.js", "/library.js",
+                           "/midi-player.js", "/app.js"}) {
     auto f = fsReady ? LittleFS.open(path, "r") : File();
     if (f) {
       Serial.printf("[HTTP] Webdatei %s bereit (%u Bytes).\n", path,
@@ -122,12 +124,50 @@ void TrainerWebServer::begin(bool filesystemReady) {
   server.on("/", HTTP_GET, [this] { file("/index.html", "text/html; charset=utf-8"); });
   server.on("/style.css", HTTP_GET, [this] { file("/style.css", "text/css"); });
   server.on("/midi-file.js", HTTP_GET, [this] { file("/midi-file.js", "application/javascript"); });
+  server.on("/library.js", HTTP_GET, [this] { file("/library.js", "application/javascript"); });
+  server.on("/midi-player.js", HTTP_GET,
+            [this] { file("/midi-player.js", "application/javascript"); });
   server.on("/app.js", HTTP_GET, [this] { file("/app.js", "application/javascript"); });
   server.on("/api/training", HTTP_GET, [this] {
     if (auth()) trainingStatus();
   });
   server.on("/api/training", HTTP_POST, [this] {
     if (auth(true)) trainingCommand();
+  });
+  server.on("/api/playback", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    StaticJsonDocument<4096> doc;
+    if (!body(doc, 2048)) return;
+    if (!doc["active"].is<bool>()) {
+      error(400, "Wiedergabestatus fehlt.");
+      return;
+    }
+    if (!doc["active"].as<bool>()) {
+      training.stopPreview();
+      ledReply();
+      return;
+    }
+    const auto notes = doc["notes"].as<JsonArrayConst>();
+    if (!doc["notes"].is<JsonArrayConst>() || notes.size() > 32) {
+      error(400, "Maximal 32 Wiedergabenoten erlaubt.");
+      return;
+    }
+    std::array<uint8_t, 128> held{};
+    for (const auto item : notes) {
+      if (!item["note"].is<int>() || !item["velocity"].is<int>()) {
+        error(400, "Ungültige Wiedergabenote.");
+        return;
+      }
+      const int note = item["note"], velocity = item["velocity"];
+      if (note < 0 || note > 127 || velocity < 1 || velocity > 127) {
+        error(400, "Ungültige Wiedergabenote.");
+        return;
+      }
+      held[note] = std::max<int>(held[note], velocity);
+    }
+    if (!training.previewActive()) midi.release();
+    training.preview(held);
+    ledReply();
   });
   server.on("/api/status", HTTP_GET, [this] {
     if (auth()) status();
@@ -385,6 +425,10 @@ void TrainerWebServer::trainingStatus() {
   json(200, d);
 }
 void TrainerWebServer::trainingCommand() {
+  if (library.busy()) {
+    error(409, "Bitte den MIDI-Download abwarten oder abbrechen.");
+    return;
+  }
   DynamicJsonDocument d(24576);
   if (!body(d, 12288)) return;
   const String command = d["command"] | "";

@@ -69,6 +69,17 @@ bool ConfigManager::begin() {
     ssid = network["ssid"] | "";
     wifiPassword = network["password"] | "";
   }
+  DynamicJsonDocument cloud(8192);
+  if (!deserializeJson(cloud, prefs.getString("cloud", "{}"))) {
+    const String folder = cloud["folder"] | "";
+    if (validLibraryUrl(folder.c_str())) {
+      cloudFolder = folder;
+      cloudUser = cloud["user"] | "";
+      cloudPassword = cloud["password"] | "";
+      cloudCa = cloud["ca"] | "";
+    }
+  }
+  cloud.clear();
   DynamicJsonDocument doc(8192);
   String error;
   auto stored = prefs.getString("led", "");
@@ -99,6 +110,23 @@ bool ConfigManager::saveWifi(const String& name, const String& password) {
   if (!prefs.putString("network", blob)) return false;
   ssid = name;
   wifiPassword = password;
+  return true;
+}
+bool ConfigManager::saveCloud(const String& folder, const String& user, const String& password,
+                              const String& ca) {
+  DynamicJsonDocument doc(8192);
+  doc["folder"] = folder;
+  doc["user"] = user;
+  doc["password"] = password;
+  doc["ca"] = ca;
+  if (doc.overflowed()) return false;
+  String blob;
+  serializeJson(doc, blob);
+  if (!prefs.putString("cloud", blob)) return false;
+  cloudFolder = folder;
+  cloudUser = user;
+  cloudPassword = password;
+  cloudCa = ca;
   return true;
 }
 bool ConfigManager::saveHostname(const String& name) {
