@@ -1,0 +1,13 @@
+{
+  "name": "piano-trainer-ui-tests",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "format": "prettier --write data test/*.test.cjs package.json",
+    "format:check": "prettier --check data test/*.test.cjs package.json"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "prettier": "3.6.2"
+  }
+}

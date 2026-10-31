@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#10151e" />
+    <title>MIDI · Piano Trainer</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script defer src="/midi-file.js"></script>
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="#dashboard"
+        ><span class="mark">▥</span
+        ><span
+          >PIANO<span class="muted"> / TRAINER</span
+          ><small>MIDI LED STUDIO · TRAINING</small></span
+        ></a
+      ><span id="connection" class="badge">Verbinde …</span>
+    </header>
+    <div class="layout">
+      <nav aria-label="Hauptnavigation">
+        <a href="#dashboard">Übersicht</a><a href="#training">Training</a
+        ><a href="#control">LED-Steuerung</a
+        ><a href="#config">LED-Konfiguration</a
+        ><a href="#wifi">WLAN-Einstellungen</a
+        ><a href="#midi">MIDI-Konfiguration</a
+        ><a href="#system">Systeminformationen</a>
+        <div class="nav-foot">
+          ESP32-C3 SuperMini<br /><span class="muted"
+            >Lokal. Direkt. Ohne Cloud.</span
+          >
+        </div>
+      </nav>
+      <main>
+        <section id="dashboard" class="page">
+          <p class="eyebrow">DEIN ÜBUNGSPLATZ</p>
+          <h1>Musik wird sichtbar.</h1>
+          <p class="lead">
+            Teste deinen LED-Streifen und entdecke die Verbindung zwischen
+            Tasten, Noten und Licht.
+          </p>
+          <div class="stats">
+            <article>
+              <small>VERBINDUNG</small><strong id="wifiState">—</strong
+              ><span id="ip">—</span>
+            </article>
+            <article>
+              <small>INSTRUMENT</small><strong id="keyCount">49 Tasten</strong
+              ><span>Virtueller MIDI-Eingang</span>
+            </article>
+            <article>
+              <small>LED-STREIFEN</small><strong id="ledCount">60 LEDs</strong
+              ><span id="ledState">GPIO 4 · WS2812B</span>
+            </article>
+          </div>
+          <article>
+            <div class="row">
+              <div>
+                <p class="eyebrow">FREE PLAY</p>
+                <h2>Deine Tasten. Dein Licht.</h2>
+              </div>
+              <span class="badge">Simulation</span>
+            </div>
+            <p>
+              Berühre eine oder mehrere Tasten. Die zugeordneten LEDs leuchten,
+              solange du sie hältst.
+            </p>
+            <div id="freeKeyboardMount">
+              <div id="ledPreview" class="led-preview">
+                <div class="row">
+                  <strong>Virtuelle LED-Leiste</strong
+                  ><span id="ledPreviewInfo" class="muted"
+                    >Lade LED-Zustand …</span
+                  >
+                </div>
+                <div
+                  id="ledStrip"
+                  class="led-strip"
+                  role="group"
+                  aria-label="Simulierter LED-Streifen"
+                ></div>
+                <p class="hint">
+                  LED-Indizes ab 0 · Farben aus dem ESP32-Ausgabepuffer, zur
+                  besseren Sichtbarkeit aufgehellt.
+                </p>
+              </div>
+              <div
+                id="keyboard"
+                class="keyboard"
+                aria-label="Virtuelle Klaviertastatur"
+              ></div>
+            </div>
+            <p class="hint">
+              Horizontal wischen für alle Tasten · MIDI-Noten werden auf den
+              Tasten angezeigt.
+            </p>
+            <button id="freePlay" class="secondary">
+              Freies Spiel aktivieren
+            </button>
+            <button id="release" class="secondary">Alle Noten loslassen</button>
+          </article>
+          <article class="callout">
+            <h2>Bereit für den ersten Test?</h2>
+            <p>
+              Beginne mit niedriger Helligkeit und prüfe die LED-Reihenfolge.
+            </p>
+            <a class="button" href="#control">LED-Steuerung öffnen →</a>
+          </article>
+        </section>
+
+        <section id="training" class="page" hidden>
+          <p class="eyebrow">SPIELEN · LERNEN · WIEDERHOLEN</p>
+          <h1>Dein nächster Schritt.</h1>
+          <p class="lead">
+            Virtuelle MIDI-Tasten, echte LED-Hinweise. Wähle eine Übung und
+            spiele die markierten Noten.
+          </p>
+          <article>
+            <form id="trainingForm">
+              <div class="fields">
+                <label
+                  >Trainingsmodus<select id="trainingMode">
+                    <option value="guided">Geführtes Lernen</option>
+                    <option value="rhythm">Rhythmustraining</option>
+                    <option value="song">Song-Modus</option>
+                  </select></label
+                >
+                <label
+                  >Übung / Song<select id="trainingPreset">
+                    <option value="five">Fünf-Finger-Übung</option>
+                    <option value="scale">Dur-Tonleiter</option>
+                    <option value="chords">Drei Dur-Akkorde</option>
+                    <option value="rhythm">Viertel und Achtel</option>
+                    <option value="joy">Freude, schöner Götterfunken</option>
+                    <option value="twinkle">
+                      Morgen kommt der Weihnachtsmann
+                    </option>
+                    <option value="custom" disabled>MIDI-Import</option>
+                  </select></label
+                >
+                <label
+                  >Tempo (BPM)<input
+                    id="trainingBpm"
+                    type="number"
+                    min="40"
+                    max="200"
+                    value="80"
+                    required
+                /></label>
+                <label
+                  >Zeitfenster ± Millisekunden<input
+                    id="trainingTolerance"
+                    type="number"
+                    min="80"
+                    max="400"
+                    value="220"
+                    required
+                /></label>
+                <label
+                  >Grundnote (MIDI)<input
+                    id="trainingRoot"
+                    type="number"
+                    min="0"
+                    max="127"
+                    value="60"
+                    required
+                /></label>
+                <label
+                  >Song-Spielweise<select id="songTimed">
+                    <option value="false">
+                      Schrittweise, auf richtige Tasten warten
+                    </option>
+                    <option value="true">Im Tempo mit Einzähler</option>
+                  </select></label
+                >
+              </div>
+              <button type="submit">Übung starten / neu beginnen</button>
+            </form>
+            <div class="actions">
+              <button id="trainingPause" class="secondary" disabled>
+                Pause</button
+              ><button id="trainingResume" class="secondary" disabled>
+                Fortsetzen</button
+              ><button id="trainingFree" class="secondary">
+                Stoppen & freies Spiel
+              </button>
+            </div>
+            <p class="hint">
+              Blau: nächste Note · Grün: gespielt · Rot: falsche Taste. Akkorde
+              gleichzeitig drücken und für den nächsten Einsatz neu anschlagen.
+              Der Rhythmus bewertet den Anschlag, nicht die Haltedauer. Ohne
+              Audioausgabe der Klaviertöne.
+            </p>
+          </article>
+          <article class="training-stage">
+            <div class="row">
+              <div>
+                <p class="eyebrow" id="trainingState">BEREIT</p>
+                <h2 id="trainingExercise">Wähle eine Übung</h2>
+              </div>
+              <span class="badge" id="trainingTempo">80 BPM</span>
+            </div>
+            <div class="training-cue">
+              <span id="beatLight" aria-hidden="true"></span
+              ><strong id="trainingTarget">—</strong
+              ><span id="trainingCountdown">Schrittweise üben</span>
+            </div>
+            <p id="trainingFeedback" role="status">Bereit</p>
+            <progress
+              id="trainingProgress"
+              max="1"
+              value="0"
+              aria-label="Übungsfortschritt"
+            ></progress>
+            <div class="training-metrics">
+              <span>Fortschritt <b id="trainingPosition">0 / 0</b></span
+              ><span>Richtig <b id="trainingCorrect">0</b></span
+              ><span>Fehler <b id="trainingWrong">0</b></span
+              ><span>Verpasst <b id="trainingMissed">0</b></span
+              ><span>Trefferquote <b id="trainingAccuracy">0 %</b></span
+              ><span>Timing Ø <b id="trainingTiming">—</b></span>
+            </div>
+            <div id="trainingKeyboardMount"></div>
+            <button id="trainingRelease" class="secondary">
+              Alle Tasten loslassen
+            </button>
+            <p class="hint">
+              Bei Fokusverlust wird pausiert. Verbindungsabbruch pausiert
+              spätestens nach 3 Sekunden. Für Rhythmusübungen am besten bei
+              60–80 BPM beginnen.
+            </p>
+          </article>
+          <article>
+            <h2>Eigene MIDI-Datei üben</h2>
+            <p>
+              Die Datei wird lokal im Browser gelesen. Es werden nur die
+              Noteneinsätze als Übung an den ESP32 gesendet. MIDI 0/1, bis 256
+              KiB, höchstens 128 Einsätze und 8 gleichzeitige Noten.
+            </p>
+            <div class="fields">
+              <label
+                >MIDI-Datei<input
+                  id="midiFile"
+                  type="file"
+                  accept=".mid,.midi,audio/midi" /></label
+              ><label
+                >Importkanal (0 = alle ohne Schlagzeug)<input
+                  id="importChannel"
+                  type="number"
+                  min="0"
+                  max="16"
+                  value="0" /></label
+              ><label
+                >Transposition (Halbtöne)<input
+                  id="importTranspose"
+                  type="number"
+                  min="-48"
+                  max="48"
+                  value="0"
+              /></label>
+            </div>
+            <button id="importMidi" class="secondary">
+              Datei als Übung übernehmen
+            </button>
+            <p id="importResult" role="status"></p>
+            <p class="hint">
+              Noten müssen in deiner konfigurierten Tastatur liegen und einer
+              LED zugeordnet sein. Tempoänderungen werden beim Üben auf das
+              gewählte feste Tempo vereinheitlicht. Vorlauf wird durch den
+              eigenen Einzähler ersetzt.
+            </p>
+          </article>
+        </section>
+        <section id="control" class="page" hidden>
+          <p class="eyebrow">LICHTLABOR</p>
+          <h1>LED-Steuerung</h1>
+          <article>
+            <h2>Farbe & einzelne LED</h2>
+            <div class="fields">
+              <label
+                >Farbe<input type="color" id="color" value="#52e0bd" /></label
+              ><label
+                >LED-Index (ab 0)<input
+                  id="ledIndex"
+                  type="number"
+                  min="0"
+                  value="0"
+              /></label>
+            </div>
+            <div class="actions">
+              <button data-command="single">Einzelne LED</button
+              ><button data-command="color">Alle in dieser Farbe</button
+              ><button data-command="off" class="danger">
+                Alles ausschalten
+              </button>
+            </div>
+          </article>
+          <article>
+            <h2>Testprogramme</h2>
+            <p>
+              Die Animation läuft auf dem ESP32 weiter und lässt sich jederzeit
+              stoppen.
+            </p>
+            <div class="actions">
+              <button data-command="sequence">LEDs nacheinander</button
+              ><button data-command="chase">Lauflicht</button
+              ><button data-command="colors">Rot / Grün / Blau / Weiß</button
+              ><button data-command="brightness">Helligkeitsrampe</button>
+              <button data-command="diagnostic">
+                Erste LED: kurzer RGB-Test
+              </button>
+            </div>
+            <p id="ledResult" role="status"></p>
+            <p class="hint">
+              Die Rampe erreicht höchstens die konfigurierte Helligkeit.
+            </p>
+            <div class="actions">
+              <button data-solid="16711680">Rot</button
+              ><button data-solid="65280">Grün</button
+              ><button data-solid="255">Blau</button
+              ><button data-solid="16777215">Weiß</button>
+            </div>
+          </article>
+        </section>
+        <section id="config" class="page" hidden>
+          <p class="eyebrow">DEIN AUFBAU</p>
+          <h1>LED-Konfiguration</h1>
+          <form id="ledForm">
+            <article>
+              <h2>Streifen & Tastatur</h2>
+              <div class="fields">
+                <label
+                  >LED-Anzahl<input
+                    name="count"
+                    type="number"
+                    min="1"
+                    max="300"
+                    required /></label
+                ><label>Daten-GPIO<select name="pin" id="pin"></select></label
+                ><label
+                  >Farbreihenfolge<select name="rgb">
+                    <option value="false">GRB (Standard)</option>
+                    <option value="true">RGB</option>
+                  </select></label
+                ><label
+                  >Helligkeit (%)<input
+                    name="brightness"
+                    type="number"
+                    min="1"
+                    max="100"
+                    required /></label
+                ><label
+                  >Erste LED (ab 0)<input
+                    name="first"
+                    type="number"
+                    min="0"
+                    max="299"
+                    required /></label
+                ><label
+                  >Tastenanzahl<input
+                    name="keys"
+                    type="number"
+                    min="1"
+                    max="88"
+                    required /></label
+                ><label
+                  >Erste MIDI-Note<input
+                    name="baseNote"
+                    type="number"
+                    min="0"
+                    max="127"
+                    required /></label
+                ><label
+                  >Reihenfolge<select name="reversed">
+                    <option value="false">Normal</option>
+                    <option value="true">Umgekehrt</option>
+                  </select></label
+                >
+              </div>
+              <p class="hint">
+                WS2812B · 800 kHz · GPIO 2, 8, 9 sowie USB- und Flash-Pins sind
+                gesperrt. GPIO 4 ist empfohlen.
+              </p>
+            </article>
+            <article>
+              <div class="row">
+                <h2>Individuelle Notenzuordnung</h2>
+                <button type="button" class="secondary" id="autoMap">
+                  Fortlaufend zuordnen
+                </button>
+              </div>
+              <p>
+                Jede MIDI-Note erhält einen logischen LED-Offset ab „Erste LED“.
+                −1 deaktiviert die Note. Umgekehrte Reihenfolge spiegelt
+                anschließend den gesamten Streifen. Mehrere Noten dürfen eine
+                LED verwenden.
+              </p>
+              <div class="mapping" id="mapping"></div>
+            </article>
+            <button type="submit">Konfiguration speichern</button>
+          </form>
+        </section>
+        <section id="wifi" class="page" hidden>
+          <p class="eyebrow">VERBINDUNG</p>
+          <h1>WLAN-Einstellungen</h1>
+          <article>
+            <h2>Mit deinem Netzwerk verbinden</h2>
+            <p>
+              Wähle ein 2,4-GHz-Netzwerk. Zugangsdaten werden erst nach
+              erfolgreicher Verbindung gespeichert. Der Setup-AP bleibt danach
+              noch 30 Sekunden erreichbar.
+            </p>
+            <button id="scan" class="secondary">Netzwerke suchen</button>
+            <div id="networks" class="networks"></div>
+            <form id="wifiForm">
+              <div class="fields">
+                <label
+                  >Netzwerkname (SSID)<input
+                    name="ssid"
+                    maxlength="32"
+                    required
+                    autocomplete="off" /></label
+                ><label
+                  >WLAN-Passwort<input
+                    name="password"
+                    type="password"
+                    maxlength="63"
+                    autocomplete="new-password"
+                  /><small>Für offene Netzwerke leer lassen.</small></label
+                >
+              </div>
+              <button>Speichern & Verbindung testen</button>
+            </form>
+            <p id="wifiResult" role="status"></p>
+            <p id="wifiAddress" hidden>
+              Neue Geräteadresse: <a id="wifiAddressLink"></a>. Zum Öffnen in
+              dasselbe WLAN wie der Trainer wechseln.
+            </p>
+          </article>
+          <article>
+            <h2>Einrichtungsmodus</h2>
+            <p>
+              SSID: <b>MIDI-Trainer-Setup</b> · Adresse: <b>192.168.4.1</b>. Das
+              Setup-WLAN-Passwort lautet immer <b>piano123</b>.
+            </p>
+            <button id="setup" class="secondary">Setup-AP einschalten</button>
+          </article>
+        </section>
+        <section id="midi" class="page" hidden>
+          <p class="eyebrow">EINGANG & LERNMODI</p>
+          <h1>MIDI-Konfiguration</h1>
+          <article>
+            <span class="badge">MIDI · Simulation</span>
+            <h2>Virtuelle Tastatur</h2>
+            <p>
+              Note On, Note Off, Velocity und mehrere gleichzeitige Noten werden
+              bereits verarbeitet. Ein echtes MIDI-Interface ist noch nicht
+              angeschlossen.
+            </p>
+            <form id="midiForm">
+              <div class="fields">
+                <label
+                  >Empfangskanal (0 = alle)<input
+                    id="channel"
+                    type="number"
+                    min="0"
+                    max="16"
+                    required
+                    value="0" /></label
+                ><label
+                  >Velocity der virtuellen Tasten<input
+                    id="velocity"
+                    type="number"
+                    min="1"
+                    max="127"
+                    value="100" /></label
+                ><label
+                  >Sendekanal der virtuellen Tasten<input
+                    id="sendChannel"
+                    type="number"
+                    min="1"
+                    max="16"
+                    value="1"
+                /></label>
+              </div>
+              <button>Kanalfilter speichern</button>
+            </form>
+          </article>
+          <article>
+            <h2>Training mit simuliertem MIDI</h2>
+            <p>
+              Geführtes Lernen, Rhythmusübungen und Songs sind unter Training
+              verfügbar. USB-MIDI-Host benötigt später den ESP32-S3 und einen
+              eigenen Host-Treiber.
+            </p>
+          </article>
+        </section>
+        <section id="system" class="page" hidden>
+          <p class="eyebrow">GERÄT</p>
+          <h1>Systeminformationen</h1>
+          <article><dl id="systemInfo"></dl></article>
+          <article>
+            <h2>Gerätepasswort ändern</h2>
+            <p>
+              Benutzername: <b>admin</b> · Standardpasswort: <b>admin</b>. Das
+              Passwort schützt die Weboberfläche. Eine Änderung startet das
+              Gerät neu; anschließend erneut anmelden.
+            </p>
+            <form id="passwordForm">
+              <label
+                >Neues Passwort (12–63 ASCII-Zeichen)<input
+                  name="password"
+                  type="password"
+                  minlength="12"
+                  maxlength="63"
+                  autocomplete="new-password"
+                  required /></label
+              ><button>Passwort speichern & neu starten</button>
+            </form>
+          </article>
+          <article>
+            <h2>Werkseinstellungen</h2>
+            <p>
+              Löscht WLAN, LED-Einstellungen und Gerätepasswort. Nach dem
+              Neustart gilt wieder die Webanmeldung <b>admin / admin</b>.
+            </p>
+            <button id="reset" class="danger">
+              Auf Werkseinstellungen zurücksetzen
+            </button>
+            <p class="hint">
+              Ohne Webzugriff: BOOT im laufenden Betrieb mindestens 8 Sekunden
+              gedrückt halten.
+            </p>
+          </article>
+        </section>
+        <footer>MIDI LED Piano Trainer <span>01 / C3 SUPERMINI</span></footer>
+      </main>
+    </div>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

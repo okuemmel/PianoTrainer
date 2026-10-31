@@ -1,0 +1,118 @@
+#include <unity.h>
+
+#include "TrainerLogic.h"
+void setUp() {}
+void tearDown() {}
+void defaults_valid() {
+  LedConfig c;
+  TEST_ASSERT_NULL(validate(c));
+  TEST_ASSERT_EQUAL(0, ledForNote(c, 48));
+  TEST_ASSERT_EQUAL(48, ledForNote(c, 96));
+  TEST_ASSERT_EQUAL(-1, ledForNote(c, 47));
+  TEST_ASSERT_EQUAL(-1, ledForNote(c, 128));
+  TEST_ASSERT_EQUAL(-1, ledForNote(c, -1));
+}
+void gpio_allowlist() {
+  LedConfig c;
+  for (int p = -1; p < 50; ++p) {
+    c.pin = p;
+    bool expected = p == 0 || p == 1 || p == 3 || p == 4 || p == 5 || p == 6 || p == 7 || p == 10 ||
+                    p == 20 || p == 21;
+    TEST_ASSERT_EQUAL(expected, validate(c) == nullptr);
+  }
+}
+void boundaries() {
+  LedConfig c;
+  c.count = 0;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.count = 301;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.count = 60;
+  c.brightness = 0;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.brightness = 101;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.brightness = 1;
+  c.first = -1;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.first = 60;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.first = 0;
+  c.keys = 89;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.keys = 49;
+  c.baseNote = 80;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.baseNote = -1;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.baseNote = 48;
+  c.channel = 17;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.channel = -1;
+  TEST_ASSERT_NOT_NULL(validate(c));
+}
+void mapping_validation() {
+  LedConfig c;
+  c.mapping[0] = -2;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.mapping[0] = 60;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.mapping[0] = 59;
+  TEST_ASSERT_NULL(validate(c));
+  c.first = 1;
+  TEST_ASSERT_NOT_NULL(validate(c));
+  c.mapping[0] = -1;
+  TEST_ASSERT_NULL(validate(c));
+}
+void reversal_property() {
+  LedConfig c;
+  for (int size = 49; size <= 300; size++) {
+    c.count = size;
+    for (int first = 0; first <= size - 49; ++first) {
+      c.first = first;
+      TEST_ASSERT_NULL(validate(c));
+      for (int n = 48; n <= 96; ++n) {
+        c.reversed = false;
+        int normal = ledForNote(c, n);
+        c.reversed = true;
+        int reversed = ledForNote(c, n);
+        TEST_ASSERT_EQUAL(size - 1, normal + reversed);
+        TEST_ASSERT_TRUE(normal >= 0 && normal < size);
+        TEST_ASSERT_TRUE(reversed >= 0 && reversed < size);
+      }
+    }
+  }
+}
+void custom_mapping() {
+  LedConfig c;
+  c.first = 4;
+  c.mapping[48] = 10;
+  c.mapping[49] = 10;
+  c.mapping[50] = -1;
+  TEST_ASSERT_NULL(validate(c));
+  TEST_ASSERT_EQUAL(14, ledForNote(c, 48));
+  TEST_ASSERT_EQUAL(14, ledForNote(c, 49));
+  TEST_ASSERT_EQUAL(-1, ledForNote(c, 50));
+  c.reversed = true;
+  TEST_ASSERT_EQUAL(45, ledForNote(c, 48));
+}
+void channels() {
+  LedConfig c;
+  TEST_ASSERT_FALSE(acceptsChannel(c, 0));
+  TEST_ASSERT_FALSE(acceptsChannel(c, 17));
+  for (int channel = 1; channel <= 16; ++channel) TEST_ASSERT_TRUE(acceptsChannel(c, channel));
+  c.channel = 5;
+  for (int channel = 1; channel <= 16; ++channel)
+    TEST_ASSERT_EQUAL(channel == 5, acceptsChannel(c, channel));
+}
+int main() {
+  UNITY_BEGIN();
+  RUN_TEST(defaults_valid);
+  RUN_TEST(gpio_allowlist);
+  RUN_TEST(boundaries);
+  RUN_TEST(mapping_validation);
+  RUN_TEST(reversal_property);
+  RUN_TEST(custom_mapping);
+  RUN_TEST(channels);
+  return UNITY_END();
+}
