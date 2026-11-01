@@ -6,9 +6,13 @@ Der Trainer soll dabei helfen, **Klavier oder Keyboard zu lernen**. Dazu wird ei
 
 Phase 1 plus Trainingsmodi mit simuliertem MIDI für ein **ESP32-C3 SuperMini mit 4 MB Flash** und einen WS2812B-Streifen. Die Firmware bietet WLAN-Einrichtung, lokale deutsch-/englischsprachige Weboberfläche, persistente LED-Konfiguration, Animationen und eine virtuelle, mehrstimmige MIDI-Tastatur. Für Phase 1 wird kein MIDI-Kabel benötigt.
 
+## Optionale Webanmeldung · Firmware 1.12.3
+
+Die Abfrage von Benutzername und Passwort ist standardmäßig ausgeschaltet, auch beim Upgrade auf diese Version. Unter **System → Webanmeldung** lässt sie sich aktivieren und wieder deaktivieren. Die Änderung gilt sofort und bleibt über Neustarts erhalten. Bei aktivierter Anmeldung ist der Benutzer `admin`, das bisher gespeicherte Passwort bleibt unverändert (Standard `admin`). Ein Passwortwechsel aktiviert die Anmeldung nicht automatisch. Die Einstellung bleibt wie die Zugangsdaten beim Backup/Restore auf dem Zielgerät erhalten und wird nicht aus einem Backup übernommen. Ein Werksreset schaltet sie wieder aus. Der Schreibzugriffsheader bleibt auch ohne Anmeldung erforderlich, einschließlich beim Update.
+
 ## Sprache · Firmware 1.10.0
 
-Die aktuelle Version **1.12.0** aktualisiert Firmware, Weboberfläche und Sprachen mit einer einzigen Datei. Unter **System → Update, Backup & Restore** stehen außerdem Sicherung und Wiederherstellung bereit. Die Versionshistorie steht im [Changelog](CHANGELOG.md).
+Die aktuelle Version **1.12.3** aktualisiert Firmware, Weboberfläche und Sprachen mit einer einzigen Datei. Unter **System → Update, Backup & Restore** stehen außerdem Sicherung und Wiederherstellung bereit. Die Versionshistorie steht im [Changelog](CHANGELOG.md).
 
 Oben rechts lässt sich **Deutsch / English** ohne Neuladen umschalten. Die Auswahl bleibt pro Browser gespeichert. Menüs, Hilfetexte, Einstellungen, Lektionen, Fortschritt, Notenvorschau und Geräteantworten werden übersetzt. Eine laufende Übung oder Wiedergabe und noch nicht gespeicherte Formulareingaben bleiben erhalten. Die Notenvorschau verwendet Deutsch H und Englisch B; MIDI-Nummern und Tonhöhen ändern sich nicht.
 
@@ -35,7 +39,7 @@ Während eines Updates werden Übung, Ton und LEDs angehalten. Die Prozentanzeig
 
 Das optionale `littlefs.ptupdate` bleibt für geänderte oder fehlende Klaviersamples verfügbar. Es schreibt weiterhin eine einzelne Dateisystemkopie; ein Abbruch kann einen erneuten Upload oder USB erfordern. Die eingebettete Oberfläche bleibt davon unabhängig. Das LittleFS-Image enthält für USB-Kompatibilität auch die ursprünglichen Webdateien; sie werden nicht mehr ausgeliefert. Ein Update von einer externen URL ist noch nicht enthalten.
 
-Fertige Pakete, ein USB-Paket für die Erstinstallation und SHA-256-Prüfsummen stehen in [dist/v1.12.0](dist/v1.12.0/) direkt im Git-Repository und in den [GitHub-Releases](https://github.com/okuemmel/PianoTrainer/releases). `python3 tools/build_release.py` bündelt nach beiden PlatformIO-Builds die Dateien unter `dist/vVERSION/` und prüft, dass die Updatepakete den aktuellen Images entsprechen. Bei einem eigenen PlatformIO-Core-Verzeichnis `PLATFORMIO_CORE_DIR` entsprechend setzen. Für spätere Versionen deren Verzeichnis gezielt in `.gitignore` freigeben; keine privaten Backups einchecken.
+Fertige Pakete, ein USB-Paket für die Erstinstallation und SHA-256-Prüfsummen stehen in [dist/v1.12.3](dist/v1.12.3/) direkt im Git-Repository und in den [GitHub-Releases](https://github.com/okuemmel/PianoTrainer/releases). `python3 tools/build_release.py` bündelt nach beiden PlatformIO-Builds die Dateien unter `dist/vVERSION/` und prüft, dass die Updatepakete den aktuellen Images entsprechen. Bei einem eigenen PlatformIO-Core-Verzeichnis `PLATFORMIO_CORE_DIR` entsprechend setzen. Für spätere Versionen deren Verzeichnis gezielt in `.gitignore` freigeben; keine privaten Backups einchecken.
 
 ## Automatisches Changelog
 

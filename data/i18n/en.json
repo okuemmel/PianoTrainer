@@ -714,7 +714,15 @@
     "Backup ist zu groß.": "Backup is too large.",
     "firmware.ptupdate aktualisiert Firmware, Oberfläche und Sprachen gemeinsam. Klaviersamples bleiben erhalten. Während der Übertragung die Stromversorgung verbunden lassen.": "firmware.ptupdate updates firmware, interface and languages together. Piano samples are preserved. Keep power connected during the upload.",
     "Klaviersamples (optional)": "Piano samples (optional)",
-    "Firmware, Oberfläche und Sprachen": "Firmware, interface and languages"
+    "Firmware, Oberfläche und Sprachen": "Firmware, interface and languages",
+    "Webanmeldung": "Web login",
+    "Anmeldung mit Benutzername und Passwort aktivieren": "Require username and password",
+    "Standardmäßig ausgeschaltet. Die Einstellung gilt für die Oberfläche und alle API-Zugriffe. Benutzername: admin. Das gespeicherte Passwort bleibt erhalten.": "Disabled by default. Applies to the interface and all API access. Username: admin. The stored password is preserved.",
+    "Webanmeldung speichern": "Save web login",
+    "Webanmeldung gespeichert.": "Web login saved.",
+    "Passwort gespeichert. Neustart …": "Password saved. Restarting …",
+    ". Das Passwort wird bei aktivierter Webanmeldung verwendet. Eine Änderung startet das Gerät neu.": ". The password is used when web login is enabled. Changing it restarts the device.",
+    "Löscht WLAN, LED-Einstellungen, Gerätepasswort und Lernfortschritt. Nach dem Neustart ist die Webanmeldung ausgeschaltet.": "Deletes Wi-Fi, LED settings, device password and learning progress. Web login is disabled after restart."
   },
   "prefixes": [
     {

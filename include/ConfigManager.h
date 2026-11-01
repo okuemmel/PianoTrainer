@@ -13,6 +13,7 @@ class ConfigManager {
   LedConfig led;
   String cloudFolder, cloudUser, cloudPassword, cloudCa;
   String ssid, wifiPassword, accessPassword;
+  bool authEnabled = false;
   String hostname = "midi-trainer";
   std::array<LessonResult, LessonCount> lessonResults{};
   bool saveLessonResult(size_t index, int accuracy);
@@ -24,6 +25,7 @@ class ConfigManager {
                  const String& ca);
   bool saveHostname(const String& name);
   bool saveAccessPassword(const String& password);
+  bool saveAuthEnabled(bool enabled);
   bool reset();
   static void encode(JsonObject obj, const LedConfig& c);
   static bool decode(JsonObjectConst obj, LedConfig& c, String& error);

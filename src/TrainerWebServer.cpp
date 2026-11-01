@@ -7,7 +7,7 @@
 bool TrainerWebServer::auth(bool mutation) {
   server.sendHeader("Cache-Control", "no-store");
   server.sendHeader("X-Content-Type-Options", "nosniff");
-  if (!server.authenticate("admin", config.accessPassword.c_str())) {
+  if (config.authEnabled && !server.authenticate("admin", config.accessPassword.c_str())) {
     Serial.printf("[HTTP] %s -> 401, Webanmeldung %s.\n", server.uri().c_str(),
                   server.hasHeader("Authorization") ? "fehlgeschlagen" : "erforderlich");
     server.requestAuthentication(BASIC_AUTH, "MIDI Trainer");
@@ -69,6 +69,7 @@ void TrainerWebServer::status() {
   d["mode"] = leds.mode;
   d["filesystem"] = fsReady;
   d["firmware"] = AppInfo::Version;
+  d["authEnabled"] = config.authEnabled;
   d["author"] = AppInfo::Author;
   d["repository"] = AppInfo::Repository;
   d["keys"] = config.led.keys;
@@ -384,6 +385,20 @@ void TrainerWebServer::begin(bool filesystemReady) {
   server.on("/api/setup", HTTP_POST, [this] {
     if (!auth(true)) return;
     wifi.setupAP();
+    server.send(200, "application/json", "{\"ok\":true}");
+  });
+  server.on("/api/access", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    StaticJsonDocument<128> d;
+    if (!body(d, 128)) return;
+    if (!d["enabled"].is<bool>()) {
+      error(400, "Boolesche Werte fehlen.");
+      return;
+    }
+    if (!config.saveAuthEnabled(d["enabled"].as<bool>())) {
+      error(500, "NVS-Speicherfehler.");
+      return;
+    }
     server.send(200, "application/json", "{\"ok\":true}");
   });
   server.on("/api/password", HTTP_POST, [this] {

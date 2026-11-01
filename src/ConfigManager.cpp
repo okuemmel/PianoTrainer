@@ -65,6 +65,7 @@ bool ConfigManager::begin() {
   if (validHostname(std::string_view(storedHostname.c_str(), storedHostname.length())))
     hostname = storedHostname;
   accessPassword = prefs.getString("access", "admin");
+  authEnabled = prefs.getBool("auth-enabled", false);
   DynamicJsonDocument network(512);
   if (!deserializeJson(network, prefs.getString("network", "{}"))) {
     ssid = network["ssid"] | "";
@@ -270,6 +271,11 @@ bool ConfigManager::saveHostname(const String& name) {
 bool ConfigManager::saveAccessPassword(const String& password) {
   if (!prefs.putString("access", password)) return false;
   accessPassword = password;
+  return true;
+}
+bool ConfigManager::saveAuthEnabled(bool enabled) {
+  if (!prefs.putBool("auth-enabled", enabled)) return false;
+  authEnabled = enabled;
   return true;
 }
 bool ConfigManager::reset() {

@@ -23,8 +23,9 @@ void TrainerWebServer::updateUpload() {
     updateComplete = false;
     updateHeaderSize = updateExpected = updateReceived = 0;
     updateError = "";
-    updateAuthorized = server.authenticate("admin", config.accessPassword.c_str()) &&
-                       server.header("X-Trainer") == "1";
+    updateAuthorized =
+        (!config.authEnabled || server.authenticate("admin", config.accessPassword.c_str())) &&
+        server.header("X-Trainer") == "1";
     if (!updateAuthorized) return;
     if (library.busy() || wifi.connecting || rebootAt) {
       updateError = "Gerät ist beschäftigt. Bitte später erneut versuchen.";

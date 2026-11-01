@@ -108,3 +108,80 @@ test("sample voices transpose from the nearest piano note and use velocity-depen
   assert.equal(ended, 1);
   assert.equal(sampleVoice(context, {}, samples, 0, 100, 1, 2), null);
 });
+
+test("mobile audio unlock selects playback and resumes suspended or interrupted contexts during the gesture", async () => {
+  const { unlock } = require("../data/piano-audio.js");
+  for (const state of ["suspended", "interrupted"]) {
+    const session = { type: "auto" };
+    let resumed = false,
+      started = false,
+      disconnected = false;
+    const source = {
+      connect(destination) {
+        assert.equal(destination, context.destination);
+      },
+      start() {
+        started = true;
+      },
+      disconnect() {
+        disconnected = true;
+      },
+    };
+    const context = {
+      state,
+      destination: {},
+      sampleRate: 48000,
+      resume() {
+        assert.equal(session.type, "playback");
+        resumed = true;
+        this.state = "running";
+        return Promise.resolve();
+      },
+      createBuffer(channels, frames, rate) {
+        assert.deepEqual([channels, frames, rate], [1, 1, 48000]);
+        return {};
+      },
+      createBufferSource() {
+        return source;
+      },
+    };
+    const ready = unlock(context, { audioSession: session });
+    assert.equal(
+      resumed,
+      true,
+      "resume must happen before yielding the gesture",
+    );
+    assert.equal(started, true);
+    await ready;
+    source.onended();
+    assert.equal(disconnected, true);
+  }
+});
+
+test("audio unlock works without session API, tolerates unsupported playback and reports a still-blocked context", async () => {
+  const { unlock } = require("../data/piano-audio.js");
+  await unlock({ state: "running" }, {});
+  await unlock(
+    { state: "running" },
+    {
+      audioSession: {
+        set type(_) {
+          throw Error("unsupported");
+        },
+      },
+    },
+  );
+  await assert.rejects(unlock({ state: "closed" }, {}), /Tippen/);
+  await assert.rejects(
+    unlock(
+      {
+        state: "interrupted",
+        resume() {
+          return Promise.resolve();
+        },
+      },
+      {},
+    ),
+    /Tippen/,
+  );
+});

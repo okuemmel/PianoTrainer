@@ -2,6 +2,20 @@
 
 Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen aus `include/AppInfo.h`; ältere Einträge wurden aus Git übernommen.
 
+## 1.12.3 · 2026-11-01
+
+- Webanmeldung standardmäßig ausschalten und unter System optional aktivierbar machen; Einstellung dauerhaft speichern und für Oberfläche, API und Updates einheitlich anwenden.
+- Aktuelle Updatepakete, USB-Installationspaket, Anleitung und Prüfsummen unter dist/v1.12.3 im Git-Repository bereitstellen.
+
+## 1.12.2 · 2026-11-01
+
+- Mobile Klaviertonausgabe mit Playback-Audiositzung und direkter Freigabe beim Tippen verbessern; unterbrochene iOS-Audiokontexte erneut aktivieren.
+- MIDI-Fortsetzen ohne verzögerte Audiofreigabe ausführen und nicht laufende Audiokontexte vor dem Start erkennen.
+
+## 1.12.1 · 2026-11-01
+
+- Diagnosebegrenzung der WLAN-Sendeleistung auf 8,5 dBm entfernen und wieder den Treiberstandard verwenden; aktuelle Sendeleistung im seriellen Log anzeigen.
+
 ## 1.12.0 · 2026-10-31
 
 - Oberfläche und Sprachdateien komprimiert in die Firmware einbetten: ein Firmwarepaket aktualisiert alles gemeinsam im freien OTA-Slot.

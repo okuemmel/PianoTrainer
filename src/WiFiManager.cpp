@@ -39,9 +39,9 @@ void logWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
 void configureRadio() {
   if (WiFi.getSleep() != WIFI_PS_NONE && !WiFi.setSleep(false))
     Serial.println("[WLAN] Energiesparen konnte nicht deaktiviert werden.");
-  // Diagnostic trial for the SuperMini: limit RF output, independently of LED brightness.
-  if (!WiFi.setTxPower(WIFI_POWER_8_5dBm))
-    Serial.println("[WLAN] Sendeleistungsbegrenzung fehlgeschlagen.");
+  // Keep the Wi-Fi driver's default transmit power; no application limit.
+  Serial.printf("[WLAN] Sendeleistung %.2f dBm (Treiberstandard).\n",
+                static_cast<int>(WiFi.getTxPower()) / 4.0);
 }
 }  // namespace
 

@@ -54,7 +54,9 @@ PORT ersetzen / replace PORT, z. B. /dev/cu.usbmodem101 oder COM5.
 Die Befehle verwenden das 4-MB-Layout dieses Projekts und schreiben die angegebenen
 Partitionen. WLAN-/Geräteeinstellungen im NVS werden dabei erhalten.
 Nach Neustart / after restart: MIDI-Trainer-Setup, Passwort/password piano123,
-http://192.168.4.1/, Webanmeldung/login admin / admin (sofern nicht selbst geändert).
+http://192.168.4.1/, ohne Webanmeldung / no web login by default.
+Optional unter System aktivieren / enable under System if desired: admin / admin
+(sofern Passwort nicht selbst geändert / unless password was changed).
 
 Dokumentation/documentation: https://github.com/okuemmel/PianoTrainer
 '''

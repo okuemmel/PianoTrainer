@@ -714,6 +714,14 @@
     "Backup ist zu groß.": "Backup ist zu groß.",
     "firmware.ptupdate aktualisiert Firmware, Oberfläche und Sprachen gemeinsam. Klaviersamples bleiben erhalten. Während der Übertragung die Stromversorgung verbunden lassen.": "firmware.ptupdate aktualisiert Firmware, Oberfläche und Sprachen gemeinsam. Klaviersamples bleiben erhalten. Während der Übertragung die Stromversorgung verbunden lassen.",
     "Klaviersamples (optional)": "Klaviersamples (optional)",
-    "Firmware, Oberfläche und Sprachen": "Firmware, Oberfläche und Sprachen"
+    "Firmware, Oberfläche und Sprachen": "Firmware, Oberfläche und Sprachen",
+    "Webanmeldung": "Webanmeldung",
+    "Anmeldung mit Benutzername und Passwort aktivieren": "Anmeldung mit Benutzername und Passwort aktivieren",
+    "Standardmäßig ausgeschaltet. Die Einstellung gilt für die Oberfläche und alle API-Zugriffe. Benutzername: admin. Das gespeicherte Passwort bleibt erhalten.": "Standardmäßig ausgeschaltet. Die Einstellung gilt für die Oberfläche und alle API-Zugriffe. Benutzername: admin. Das gespeicherte Passwort bleibt erhalten.",
+    "Webanmeldung speichern": "Webanmeldung speichern",
+    "Webanmeldung gespeichert.": "Webanmeldung gespeichert.",
+    "Passwort gespeichert. Neustart …": "Passwort gespeichert. Neustart …",
+    ". Das Passwort wird bei aktivierter Webanmeldung verwendet. Eine Änderung startet das Gerät neu.": ". Das Passwort wird bei aktivierter Webanmeldung verwendet. Eine Änderung startet das Gerät neu.",
+    "Löscht WLAN, LED-Einstellungen, Gerätepasswort und Lernfortschritt. Nach dem Neustart ist die Webanmeldung ausgeschaltet.": "Löscht WLAN, LED-Einstellungen, Gerätepasswort und Lernfortschritt. Nach dem Neustart ist die Webanmeldung ausgeschaltet."
   }
 }

@@ -1,6 +1,31 @@
 /* Local FluidR3 piano samples. Attribution and source: /piano-credits.txt. */
 (function (root) {
   "use strict";
+  // Call directly from a tap/click, before waiting for samples or network requests.
+  function unlock(context, navigator = root.navigator) {
+    try {
+      if (navigator?.audioSession) navigator.audioSession.type = "playback";
+    } catch {
+      // Older browsers may expose the API without accepting this session type.
+    }
+    if (context.state === "closed")
+      return Promise.reject(Error("Tonausgabe zuerst per Tippen aktivieren."));
+    const needsResume =
+      context.state === "suspended" || context.state === "interrupted";
+    const ready = needsResume ? context.resume() : Promise.resolve();
+    if (needsResume && context.createBuffer && context.createBufferSource) {
+      // A silent one-frame buffer unlocks the audio output on older iOS versions.
+      const source = context.createBufferSource();
+      source.buffer = context.createBuffer(1, 1, context.sampleRate || 44100);
+      source.connect(context.destination);
+      source.onended = () => source.disconnect();
+      source.start(0);
+    }
+    return Promise.resolve(ready).then(() => {
+      if (context.state !== "running")
+        throw Error("Tonausgabe zuerst per Tippen aktivieren.");
+    });
+  }
   function unpack(bytes) {
     if (
       !(bytes instanceof ArrayBuffer) ||
@@ -141,7 +166,7 @@
     source.stop(end + 0.12);
     return voice;
   }
-  const api = { Bank, unpack, sampleVoice, bank: new Bank() };
+  const api = { Bank, unpack, sampleVoice, unlock, bank: new Bank() };
   root.PianoAudio = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

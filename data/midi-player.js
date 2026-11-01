@@ -58,8 +58,9 @@
         this.master.gain.value = this.volume * 0.35;
         this.master.connect(this.context.destination);
       }
-      const resumed =
-        this.context.state === "suspended"
+      const resumed = root.PianoAudio?.unlock
+        ? root.PianoAudio.unlock(this.context)
+        : this.context.state !== "running"
           ? this.context.resume()
           : Promise.resolve();
       if (!root.PianoAudio) return resumed;
@@ -91,7 +92,7 @@
       if (changed) this.scoreSteps = scoreSteps(performance);
       this.position = offset;
       this.next = 0;
-      if (!this.context || this.context.state === "suspended")
+      if (!this.context || this.context.state !== "running")
         throw Error("Tonausgabe zuerst per Tippen aktivieren.");
       this.started = this.context.currentTime - offset;
       this.state = "playing";

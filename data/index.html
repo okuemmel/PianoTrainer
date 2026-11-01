@@ -948,11 +948,26 @@
             </p>
           </article>
           <article>
+            <h2>Webanmeldung</h2>
+            <form id="accessForm">
+              <label class="check-option"
+                ><input id="authEnabled" type="checkbox" /> Anmeldung mit
+                Benutzername und Passwort aktivieren</label
+              >
+              <p class="hint">
+                Standardmäßig ausgeschaltet. Die Einstellung gilt für die
+                Oberfläche und alle API-Zugriffe. Benutzername: admin. Das
+                gespeicherte Passwort bleibt erhalten.
+              </p>
+              <button>Webanmeldung speichern</button>
+            </form>
+          </article>
+          <article>
             <h2>Gerätepasswort ändern</h2>
             <p>
               Benutzername: <b>admin</b> · Standardpasswort: <b>admin</b>. Das
-              Passwort schützt die Weboberfläche. Eine Änderung startet das
-              Gerät neu; anschließend erneut anmelden.
+              Passwort wird bei aktivierter Webanmeldung verwendet. Eine
+              Änderung startet das Gerät neu.
             </p>
             <form id="passwordForm">
               <label
@@ -980,8 +995,8 @@
             <h2>Werkseinstellungen</h2>
             <p>
               Löscht WLAN, LED-Einstellungen, Gerätepasswort und
-              Lernfortschritt. Nach dem Neustart gilt wieder die Webanmeldung
-              <b>admin / admin</b>.
+              Lernfortschritt. Nach dem Neustart ist die Webanmeldung
+              ausgeschaltet.
             </p>
             <button id="reset" class="danger">
               Auf Werkseinstellungen zurücksetzen

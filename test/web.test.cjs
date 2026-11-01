@@ -1631,3 +1631,46 @@ test("update UI rejects an incompatible package and waits for verified upload su
     /Update geprüft und gespeichert/,
   );
 });
+
+test("MIDI continue unlocks audio inside the button gesture before resuming playback", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  let unlocked = false,
+    continued = false,
+    finish;
+  s.w.MidiPlayer.Player.prototype.unlock = function () {
+    unlocked = true;
+    return new Promise((resolve) => (finish = resolve));
+  };
+  s.w.MidiPlayer.Player.prototype.resume = function () {
+    continued = true;
+  };
+  s.d.querySelector("#pauseMidi").disabled = false;
+  s.d.querySelector("#pauseMidi").click();
+  assert.equal(
+    unlocked,
+    true,
+    "unlock cannot be deferred to a Promise callback",
+  );
+  assert.equal(continued, false);
+  finish();
+  await tick();
+  await tick();
+  assert.equal(continued, true);
+});
+
+test("web login defaults off and saves an explicit boolean without transmitting a password", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const checkbox = s.d.querySelector("#authEnabled");
+  assert.equal(checkbox.checked, false);
+  checkbox.click();
+  s.d
+    .querySelector("#accessForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  const saved = s.calls.find((c) => c.url === "/api/access");
+  assert.deepEqual(JSON.parse(JSON.stringify(saved.body)), { enabled: true });
+  assert.equal(saved.options.headers["X-Trainer"], "1");
+});

@@ -601,12 +601,24 @@ $("#setup").onclick = () =>
     await api("setup", {});
     toast("Setup-AP eingeschaltet.");
   });
+let accessDirty = false;
+$("#authEnabled").onchange = () => {
+  accessDirty = true;
+};
+$("#accessForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    await api("access", { enabled: $("#authEnabled").checked });
+    accessDirty = false;
+    toast("Webanmeldung gespeichert.");
+  });
+};
 $("#passwordForm").onsubmit = (e) => {
   e.preventDefault();
   run(async () => {
     await api("password", { password: e.target.elements.password.value });
     e.target.reset();
-    toast("Neustart. Danach mit neuem Passwort anmelden.");
+    toast("Passwort gespeichert. Neustart …");
   });
 };
 $("#reset").onclick = () => {
@@ -623,6 +635,7 @@ $("#reset").onclick = () => {
     });
 };
 function renderStatus(s) {
+  if (!accessDirty) $("#authEnabled").checked = s.authEnabled === true;
   I18n.text($("#appVersion"), () =>
     s.firmware ? I18n.t("v") + s.firmware : I18n.t("Version unbekannt"),
   );
@@ -1042,9 +1055,11 @@ function audioReady() {
   const Audio = window.AudioContext || window.webkitAudioContext;
   if (!Audio)
     throw Error("Dieser Browser unterstützt keine Web-Audio-Ausgabe.");
-  if (!audioContext) audioContext = new Audio();
-  if (audioContext.state === "suspended") return audioContext.resume();
-  return Promise.resolve();
+  if (!audioContext || audioContext.state === "closed") {
+    audioContext = new Audio();
+    pianoSamples = null;
+  }
+  return window.PianoAudio.unlock(audioContext);
 }
 $("#soundEnabled").onchange = () => {
   if (!$("#soundEnabled").checked) {
@@ -1808,11 +1823,17 @@ $("#listenMidi").onclick = () => {
 };
 $("#pauseMidi").onclick = () => {
   if (midiPlayer.state === "playing") midiPlayer.pause();
-  else
-    run(async () => {
-      await midiPlayer.unlock();
-      midiPlayer.resume();
-    });
+  else {
+    try {
+      const unlocked = midiPlayer.unlock();
+      run(async () => {
+        await unlocked;
+        midiPlayer.resume();
+      });
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
 };
 $("#stopMidi").onclick = () => midiPlayer.stop("Stopp gedrückt");
 $("#midiVolume").oninput = () =>
