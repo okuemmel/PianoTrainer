@@ -1,10 +1,80 @@
-# PianoTrainer v2 – Architektur und Bestandsaufnahme
+# PianoTrainer v2 – Architektur, Implementierung und Zielbild
 
-Stand: 1. November 2026. **Phase-0-Referenzinventar und Zielarchitektur. Phase 1 ist freigegeben; der minimale Softwareport ist in [V2_S3_PORT.md](V2_S3_PORT.md) dokumentiert. Die freigegebene [Phase-2-Vorbereitung](V2_MIDI_PREPARATION.md) implementiert gemeinsame Eingaben, DIN und einen isolierten USB-Probelauf. Weitergehender USB-Empfang sowie Phasen 3–4 sind offen.**
+Stand: 1. November 2026. **Aktueller Stand: 2.0.0-alpha.2.** Abschnitt 0 beschreibt die implementierte Architektur. Abschnitte 1–2 bewahren die v1.15.1-Referenz; die weiteren Abschnitte dokumentieren Entscheidungen und das noch nicht vollständig implementierte v2-Zielbild. S3- und MIDI-Hardwareabnahme bleiben offen.
 
-Verbindliche Referenz: **v1.15.1**, `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Arbeitsbranch: `develop/v2`. [Feature-Matrix](V2_FEATURE_PARITY.md), [Migration/Meilensteine](V2_MIGRATION_PLAN.md), [Testplan](V2_TEST_PLAN.md). Die gesonderte Freigabe für Phase 1 liegt mit „dnn los“ vor; der Entwicklungsstand ist `2.0.0-alpha.1`.
+Verbindliche Referenz: **v1.15.1**, `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Entwicklungsbasis: `develop/v2`, aktueller Implementierungsbranch `feature/v2-midi-inputs`. [Feature-Matrix](V2_FEATURE_PARITY.md), [Migration/Meilensteine](V2_MIGRATION_PLAN.md), [Testplan](V2_TEST_PLAN.md). Die gesonderte Freigabe für Phase 1 liegt mit „dnn los“ vor; die vorgezogene Phase-2-Vorbereitung ist ebenfalls freigegeben; der Entwicklungsstand ist `2.0.0-alpha.2`.
 
-## 1. Repository und tatsächlicher Istzustand
+## 0. Implementierte Architektur · 2.0.0-alpha.2
+
+Dieses Diagramm entspricht dem aktuellen Quellcode und dem Überblick in der [README](../README.md#architektur). Es ist ein Software-/Buildstand, keine Bestätigung elektrischer Funktionen auf dem noch nicht verfügbaren S3. [S3-Port](V2_S3_PORT.md) und [MIDI-Vorbereitung](V2_MIDI_PREPARATION.md) beschreiben die jeweiligen Schritte.
+
+```mermaid
+flowchart TB
+  subgraph Browser["Browser · lokale Oberfläche"]
+    KEYS["Virtuelle Tastatur"]
+    FILES["MIDI-Dateien und Favoriten"]
+    PLAYER["SMF-Parser und MIDI-Player"]
+    AUDIO["AudioContext: Samples / Synthesizer"]
+    VIEW["Notenvorschau und Falling Notes"]
+    FILES --> PLAYER
+    PLAYER --> AUDIO
+    PLAYER -->|Playerposition| VIEW
+  end
+  subgraph Device["ESP32-S3 · aktueller Softwareport"]
+    API["Web/API und ControlSession"]
+    INPUT["MidiInputs: Auswahl und Wächter"]
+    UART["DIN-UART: ausdrücklich gewählter RX-Pin"]
+    PARSER["MidiByteParser"]
+    ROUTER["MidiRouter: Quelle × Kanal × Note"]
+    CTRL["TrainingController"]
+    ENGINE["TrainingEngine und Lektionen"]
+    LED["LedController / NeoPixel"]
+    CONFIG["ConfigManager / NVS"]
+    REMOTE["RemoteLibrary: separater Netzwerkjob"]
+    PROBE["Optionaler USB-Enumerationsbuild"]
+    UART --> PARSER --> INPUT
+    API -->|Webnoten| INPUT
+    INPUT --> ROUTER --> CTRL
+    CTRL --> ENGINE
+    CTRL --> LED
+    API -->|Training / Wiedergabevorschau| CTRL
+    API --> CONFIG
+    REMOTE -->|MIDI-Blöcke| API
+    PROBE -->|Nur USB-Diagnose| API
+  end
+  KEYS -->|HTTP| API
+  PLAYER -->|Trainingsabschnitt / Playback-LEDs| API
+  API -->|Status / gehaltene Noten| VIEW
+  API -->|Dateitransfer| FILES
+  LED --> STRIP["WS2812B-Leiste"]
+```
+
+### Komponenten und Ausführungskontexte
+
+| Verantwortung | Aktuelle Implementierung | Ausführung / Zustand |
+|---|---|---|
+| Eingangsadapter | `MidiInputs` in `include/MidiInput.h`; Web standardmäßig, S3-DIN nach expliziter RX-Wahl | Aufruf im Arduino-Loop; begrenzte UART-Batches, Web-Heartbeat und DIN-Active-Sensing getrennt; Quellenauswahl flüchtig |
+| Protokollparser | `MidiByteParser.h`, `UsbMidiProtocol.h` | Portable Parser ohne Heap-SysEx-Puffer; USB-Pakete sind noch nicht mit Bulk-Transfers verbunden |
+| Quellaggregation | `MidiRouter.h`, `MidiTypes.h` | Fester Speicher für Quelle × Kanal × Note; gemeinsames Ereignis mit Typ/Quelle/Empfangszeit; keine Worker-Callbacks direkt in der Lernengine |
+| Lernkern | `TrainingController`, `TrainingEngine`, bestehende Kataloge und Mappinglogik | Eigentümer im Loop; Geräte-`millis()` für Training, bestehende Regeln und 8er-Zielakkordgrenze bleiben erhalten |
+| LED-Ausgabe | `LedController` und NeoPixel 1.12.5 | Vorhandene Effekte/Preview und RMT-Pfad der gepinnten Bibliothek; keine neue DMA-/Latenzzusage |
+| Web/API | `TrainerWebServer`, Lesson-/Library-/MaintenanceRoutes, `ControlSession` | Synchroner Server im Loop, eine aktive Steuersitzung; additive Eingangs-/Statusfelder, bestehende Routen erhalten |
+| Netzwerkjobs | `RemoteLibrary` | Eigener FreeRTOS-Worker mit begrenztem Streamingpuffer; vollständige MIDI-Dateien verbleiben im Browser bzw. auf der Quelle |
+| Konfiguration | `ConfigManager`, Preferences-Namespace `trainer` | Schema 1, vollständige Validierung vor Persistenz, gesonderte Netzwerk-/Zugriffsdaten; keine MIDI-Quellenpersistenz |
+| USB-Probelauf | `UsbHostProbe.cpp`, nur `s3_usb_probe` | SDK-Daemon bedient Library-Events, Client-Ereignisse im Loop, gemeinsamer Fehlerzähler atomar; Enumeration erst nach UART-Kommando U, kein MIDI-Empfang und keine OTA-Pakete |
+| Browser und Dateien | `data/app.js`, SMF-/Player-/Audio-/Falling-Notes-/Librarymodule | Player-AudioContext ist die Wiedergabeuhr; Canvas/SVG liest aktive Quelle. Favoriten/UI-Präferenzen browserlokal, MIDI-Dateiparser im Browser |
+| Auslieferung / Update | EmbeddedWeb-Generator, Boardprofile, Paket-/Releasewerkzeuge | UI/Sprachen in Firmware; LittleFS für optionale Samples; Target-/Layout-/Imageprüfung für getrennte C3-/S3-Artefakte |
+
+Die Wiedergabevorschau ist ein eigener API-Pfad zum `TrainingController` und wird **nicht als Lernanschlag** in den MIDI-Router eingeschleust. Die Statusantwort übermittelt gehaltene Noten und den Geräte-LED-Puffer; der Browser zeichnet keine unabhängig erfundenen LED-Zustände.
+
+### Grenzen zum Zielbild
+
+- Aktuell wird zur Laufzeit eine Eingangsquelle gewählt; das portable Ledger ist bereits für mehrere Quellen ausgelegt. USB-Device-IDs/-Generationen, mehrere Kabel und Transfer-/Queuefehler sind noch nicht integriert.
+- Der Parser-Empfangsstempel `receivedUs` ersetzt weder eine musikalische Transportuhr noch eine physische Latenzmessung. Browserplayer und Gerätetraining haben weiterhin verschiedene Uhren; Playback-LEDs werden über HTTP gespiegelt.
+- Der Loop besitzt die Lern-/LED-Zustandsänderungen. Eine eigene zeitkritische Core-Aufgabe mit begrenzten MIDI-/Befehlsqueues ist noch das Ziel aus Abschnitt 6; der Netzwerkworker allein erfüllt diese Echtzeitarchitektur nicht.
+- Alle v1-Funktionen bleiben in der S3-Hardwareabnahme offen. Hosttests und drei erfolgreiche Firmwarebuilds sind im [Testplan](V2_TEST_PLAN.md) belegt; OTraki-/VBUS-/UART-/LED-Messwerte wurden nicht erhoben.
+
+## 1. v1.15.1-Referenzinventar
 
 103 versionierte Dateien am Referenzcommit, einschließlich drei versionierter C3-Downloadverzeichnisse. Generierte `.pio/`, `node_modules/`, Python-Caches und Sprach-`.gz` sind keine zusätzlichen Projektquellen. Es existiert keine `.github/workflows`-CI und keine projektweite `LICENSE`-Datei. Fremdasset-Quellen sind dagegen dokumentiert; daraus folgt noch keine geklärte Bausatz-Lizenzierung.
 
@@ -22,14 +92,14 @@ Verbindliche Referenz: **v1.15.1**, `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. 
 | Build und Werkzeuge | `platformio.ini`, `partitions.csv`, `package{,-lock}.json`, alle neun `tools/*.py`: gzip, EmbeddedWeb, Update-/Releasepakete, Quellenhash für Samples, Icons und Changelog |
 | Qualität und Historie | beide nativen Testsuiten, alle Node-Testdateien, Python-Werkzeugtests, `AGENTS.md`, README, TODO, TESTING, CHANGELOG, `docs/I18N.md`, historische Releasebeschreibung und drei `dist/v*/`-Anleitungen/Manifeste/Prüfsummen |
 
-### Bestehende Abhängigkeiten
+### Abhängigkeiten am v1-Referenzcommit
 
 - PlatformIO `espressif32@6.10.0`, `esp32-c3-devkitm-1`, Arduino-ESP32 **2.0.17**, ESP-IDF **4.4.7** laut lokalem SDK-Header; C++17. `c3_supermini` und `native` sind die einzigen Umgebungen.
 - `Adafruit NeoPixel@1.12.5`, `ArduinoJson@6.21.5`; WebServer, WiFi, HTTPClient, TLS/CA-Bundle, Preferences, LittleFS, DNS/mDNS, Update und FreeRTOS kommen aus dem SDK.
 - Entwicklerwerkzeuge: Node, jsdom 26.1.0, fake-indexeddb 6.0.0, Prettier 3.6.2 und Unity/Python-unittest. Node ist keine Geräteabhängigkeit. Iconregenerierung benötigt librsvg/Pillow; Samples sind bereits lokal mit Quellenhinweis vorhanden.
 - Keine verpflichtenden Laufzeit-CDNs. Nextcloud, MIDIsss und MIDICollection sind optionale Netzwerkquellen. Lokale Dateien, vorhandene Favoriten, Übungen, UI und Klang benötigen keinen Internetserver.
 
-## 2. Aktuelle Datenflüsse
+## 2. Datenflüsse der v1.15.1-Referenz
 
 ```mermaid
 flowchart TD
@@ -67,7 +137,7 @@ flowchart TD
 
 **Zwei Zeitautoritäten:** Dateiplayer/Audio folgen `AudioContext.currentTime`; die Lernengine folgt auf dem Gerät übergebenen `millis()`-Werten. Falling Notes liest jeweils die aktive Quelle. Die Player-LEDs werden über HTTP gespiegelt. Diese Architektur ist eine vorhandene Funktion, aber noch nicht die in v2 geforderte gemeinsame musikalische Zeitbasis. Wait-for-Note hält nur den Lernfortschritt, nicht bereits einen kompletten Begleitdateiplayer an.
 
-`MidiEvent` besitzt heute ausschließlich `note`, `velocity`, `channel`, `on`. `TrainingEngine.held[128]` unterscheidet keine Quellen oder gleichnamigen Töne verschiedener Kanäle. Wiederholtes Note-On einer gehaltenen Taste wird nicht neu gewertet. Ein blindes Anstecken zweier Treiber würde daher Quellkonflikte und falsche Note-Offs ermöglichen.
+Am v1-Referenzcommit besitzt `MidiEvent` ausschließlich `note`, `velocity`, `channel`, `on`. `TrainingEngine.held[128]` unterscheidet keine Quellen oder gleichnamigen Töne verschiedener Kanäle. Wiederholtes Note-On einer gehaltenen Taste wird nicht neu gewertet. Ein blindes Anstecken zweier Treiber würde daher Quellkonflikte und falsche Note-Offs ermöglichen. Im aktuellen v2-Stand liegt deshalb das Quellen-/Kanalledger vor der weiterhin quellunabhängigen Lernengine (Abschnitt 0).
 
 ## 3. Zielboard – belegt, angegeben und noch offen
 
@@ -82,7 +152,7 @@ Nutzerangabe vom 1. November 2026: **„ESP32-S3 DevC-1-N16R8-S3“**. Diese Bez
 | USB-Daten / Debug | S3 hat OTG und USB-Serial/JTAG, aber einen gemeinsamen internen PHY | [Espressif USB-PHY-Hinweis](https://docs.espressif.com/projects/esp-usb/en/latest/esp32s3/usb_host.html); Host und Debug nicht auf demselben internen PHY gleichzeitig voraussetzen |
 | USB-Host-Versorgung | Kein Beleg für schaltbaren, strombegrenzten 5-V-Host-VBUS auf dem konkreten Board | Schaltplan, Adapter, Rückspeiseschutz und Strombedarf des Keyboards prüfen; USB-Buchse allein beweist keinen versorgbaren Hostport |
 | LED-/DIN-/BOOT-/Debug-Pins | Noch keine verbindliche S3-Belegung | Konfliktmatrix gegen USB, UART-Bridge, Speicher, Strapping und Board-LED erstellen; vorhandene LED-Schaltung/Mapping logisch erhalten |
-| Partitionierung | C3-Offsets sind keine S3-Vorgabe | Zwei OTA-Slots, NVS/otadata, optionale Samples/Dateien, Recoverypfad und tatsächliche Flashgröße dimensionieren; noch keine neue CSV |
+| Partitionierung | In Phase 0 noch zu dimensionieren; seit alpha.1 eigenes 16-MiB-Layout | `partitions_s3_n16r8.csv`: zwei 4-MiB-Appplätze, NVS/otadata und optionales Sampledateisystem; Builds geprüft, reale Flash-/OTA-Abnahme offen |
 
 Ein separater USB-UART-Debugpfad wäre bei Nutzung des internen OTG-PHY zweckmäßig, **falls** das konkrete Board eine geeignete Bridge besitzt. Alternativen: externes PHY oder getrennter Debugadapter. Keine eFuse-Änderungen als bequemen Standard vorsehen. Kein GPIO/PSRAM-/VBUS-Test wurde am S3 ausgeführt.
 
@@ -101,9 +171,9 @@ Ein separater USB-UART-Debugpfad wäre bei Nutzung des internen OTG-PHY zweckmä
 | Favoriten, Quellen, i18n, UI | bestehende Speicher-/Sprachformate und Menüs | Datenumzug bei Originwechsel, neue Texte/Capabilities additiv |
 | Paket-/Releasewerkzeuge | deterministisches gzip, Paket-/ZIP-/Checksumtests | Target-/Board-/Layoutdaten aus Buildprofil statt hartem C3; C3-Artefakte unverändert archivieren |
 
-## 5. Architekturentscheidungen vor Implementierung
+## 5. Architekturentscheidungen und Ausbaurisiken
 
-Diese ADRs dokumentieren Alternativen und Risiken. Der bevorzugte Weg ist eine Empfehlung; die Umstellung ist noch nicht freigegeben.
+Diese ADRs dokumentieren die in Phase 0 bewerteten Alternativen und Risiken. Der tatsächlich umgesetzte Zwischenstand steht in Abschnitt 0 und in den Phase-2-Entscheidungen am Ende dieses Dokuments. Die darüber hinausgehenden Transport-/Echtzeitentwürfe sind weiterhin geplante Ausbauschritte.
 
 | ADR | Alternativen | Empfehlung / Grund | Risiko und Entscheidungsgate |
 |---|---|---|---|

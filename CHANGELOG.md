@@ -4,6 +4,7 @@ Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen 
 
 ## 2.0.0-alpha.2 · 2026-11-01
 
+- README auf den aktuellen v2-Stand ausrichten: Funktionen, Einrichtung, getrennte Downloads, Backup/Migration und MIDI-Grenzen neu ordnen. Implementierte Architektur und geplante gemeinsame Transport-/Echtzeitarchitektur mit Mermaid zeigen; Referenzinventar und aktuellen Komponenten-/Ausführungskontext in der Architekturdokumentation klar trennen. Überholte Angaben zu LittleFS-Pflicht, permanenter Anmeldung, WLAN-Sendeleistungsgrenze und temporären Uploaddateien berichtigen.
 - Phase 2 vor Ankunft der Hardware vorbereiten: gemeinsame typisierte MIDI-Ereignisse mit Empfangszeit/Quelle, begrenzte Quellen-/Kanalverwaltung und derselbe bestehende Lernpfad für virtuelle und vorbereitete Hardwareeingaben.
 - MIDI-1.0-Byteparser mit Running Status, Velocity-0-Note-Off, CC120/123, Realtime/System-Common und begrenzter SysEx-Behandlung ergänzen. S3-DIN-UART optional mit ausdrücklich gewähltem RX-Pin, Fehlerbereinigung und Active-Sensing-Wächter vorbereiten; Standard bleibt virtuelle Eingabe, Auswahl nur bis Neustart.
 - DE/EN-Eingangsauswahl und MIDI-Diagnose ergänzen; Web-Release und Heartbeat auf die Webquelle begrenzen, LED-/RX-Pinkonflikte abweisen und virtuelle Noten bei gewähltem DIN-Eingang klar ablehnen.
