@@ -2,6 +2,11 @@
 
 Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen aus `include/AppInfo.h`; ältere Einträge wurden aus Git übernommen.
 
+## v2-Planung auf Basis 1.15.1 · 2026-11-01
+
+- Ausschließlich Phase 0 auf `develop/v2`: v1.15.1-Referenzcommit, vollständige Feature-/API-/Dateninventare, Architektur- und MIDI-Integrationsentwurf, S3-Hardwarefragen für das genannte DevC-N16R8-Board sowie Migrations- und Regressionstestplan dokumentieren.
+- Keine Firmware-/API-/Buildänderung und keine S3-Paritäts- oder Latenzzusage; AppInfo bleibt 1.15.1. Phase 1 beginnt erst nach ausdrücklicher Freigabe.
+
 ## 1.15.1 · 2026-11-01
 
 - Pause-/Fortsetzen-Taste direkt in der Falling-Notes-Ansicht ergänzen, auch in der vergrößerten Ansicht. Je nach aktiver Quelle den vorhandenen MIDI-Player oder die Übung steuern; mobile Audiofreigabe beim Fortsetzen beibehalten.
