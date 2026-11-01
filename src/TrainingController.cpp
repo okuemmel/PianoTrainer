@@ -61,6 +61,7 @@ bool TrainingController::start(LearningMode mode, const TrainingSequence& sequen
     error = "Ungültige Übung, Tempo oder Zeitfenster.";
     return false;
   }
+  if (++sequenceId == 0) ++sequenceId;
   previewing = false;
   ownsLeds = true;
   errorAt = 0;
@@ -130,6 +131,7 @@ void TrainingController::loop() {
 }
 void TrainingController::status(JsonObject o) const {
   const auto now = millis();
+  o["sequenceId"] = sequenceId;
   o["exercise"] = exercise;
   o["preview"] = previewing;
   o["mode"] = modeName(engine.mode);
@@ -147,6 +149,7 @@ void TrainingController::status(JsonObject o) const {
   o["lastTimingMs"] = engine.lastTimingMs;
   o["averageTimingMs"] = engine.averageTimingMs();
   o["dueInMs"] = engine.running() ? engine.dueInMs(now) : 0;
+  o["nextTimeMs"] = engine.dueMs();
   o["beatMs"] = engine.beatMs();
   o["durationMs"] = engine.durationMs();
   o["elapsedMs"] = engine.elapsed(now);

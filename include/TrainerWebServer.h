@@ -2,6 +2,7 @@
 #include <WebServer.h>
 
 #include "ConfigManager.h"
+#include "ControlSession.h"
 #include "MidiInput.h"
 #include "RemoteLibrary.h"
 #include "WiFiManager.h"
@@ -15,6 +16,9 @@ class TrainerWebServer {
 
  private:
   WebServer server{80};
+  ControlSession session;
+  bool requireSession();
+  void sessionRoutes();
   RemoteLibrary library;
   void libraryRoutes();
   void lessonRoutes();

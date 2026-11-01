@@ -1,6 +1,6 @@
 # Prüfprotokoll
 
-Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, Arduino-Framework, C++17.
+Stand: 1. November 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, Arduino-Framework, C++17.
 
 ## Ausgeführt
 
@@ -8,8 +8,8 @@ Stand: 31. Oktober 2026. Ziel: ESP32-C3 SuperMini, 4 MB Flash, native USB-CDC, A
 |---|---|
 | `pio run -e c3_supermini` | Erfolgreich, Firmware und ESP32-C3-Bootloader erzeugt |
 | `pio run -e c3_supermini -t buildfs` | Erfolgreich, LittleFS mit HTML, CSS und JavaScript erzeugt |
-| `pio test -e native` | 20 von 20 Tests bestanden |
-| `npm test` | 63 von 63 Browser-/MIDI-/Sprach-/Wartungstests bestanden |
+| `pio test -e native` | 21 von 21 Tests bestanden |
+| `npm test` | 85 von 85 Browser-/MIDI-/Sprach-/Wartungstests bestanden |
 | `python3 -m unittest discover -s test -p 'test_tools.py'` | 4 von 4 Werkzeugtests bestanden |
 | `node --check data/app.js` | JavaScript-Syntax gültig |
 | `npm run format:check` | Bestanden |
@@ -18,8 +18,8 @@ Build: Espressif32 6.10.0, Arduino-ESP32 2.0.17 (`3.20017.241212+sha.dcc1105b`),
 
 Speicherbelegung laut finalem Linkergebnis:
 
-- Statischer RAM: **51.276 / 327.680 Bytes (15,6 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
-- Anwendung im Flash: **1.262.778 / 1.572.864 Bytes (80,3 %)**.
+- Statischer RAM: **51.324 / 327.680 Bytes (15,7 %)**; dynamische Laufzeitallokationen sind darin nicht enthalten.
+- Firmware-Image 1.15.1: **1.351.424 Bytes** innerhalb eines OTA-Slots von **1.572.864 Bytes**, einschließlich eingebetteter Oberfläche.
 - LittleFS-Partition: **983.040 Bytes**; das Image enthält alle lokalen Webdateien.
 
 Artefakte unter `.pio/build/c3_supermini/`: `firmware.bin`, `firmware.elf`, `bootloader.bin`, `partitions.bin`, `littlefs.bin`. Für das Flashen die PlatformIO-Uploadziele verwenden, damit Offsets und Bootloader korrekt gesetzt werden.
@@ -32,7 +32,45 @@ C++: Standardkonfiguration, erlaubte/gesperrte GPIOs, Bereichsgrenzen, unzuläss
 
 DOM: 49 virtuelle Tasten, 128 Zuordnungen, GPIO-Auswahl, geordnete mehrstimmige Note-On/Off-Ereignisse, Freigabe bei Fokusverlust und Seitenwechsel, typisierte Konfigurationsdaten samt Schreibzugriffsheader, WLAN-Auswahl und Passwortlöschung im Formular. Ein SSID-Name mit HTML-Zeichen wird als Text dargestellt.
 
-Die DOM-Tests verwenden jsdom und simulierte API-Antworten. Sie bestätigen weder die reale Firmware-HTTP-Authentifizierung noch die visuelle Darstellung auf iPad/Safari. Ein sichtbarer Browserlauf war hier mangels Browser-Ausführungswerkzeug nicht möglich.
+Die DOM-Tests verwenden jsdom und simulierte API-Antworten. Sie bestätigen weder die reale Firmware-HTTP-Authentifizierung noch die visuelle Darstellung auf iPad/Safari. Ergänzend wurden lokale Headless-Chrome-Renderings mit simulierten API-Daten geprüft; Details stehen im Abschnitt zu Falling Notes.
+
+## Pause und Rücksprung · Release 1.15.1 · 1. November 2026
+
+85 Node-Tests, 21 native Tests und 4 Python-Werkzeugtests bestanden; Formatprüfung erfolgreich. Neue DOM-Tests prüfen Pause/Fortsetzen während des Einzählens und in der vergrößerten Ansicht, Deaktivierung im freien Spiel, Vorrang des laufenden Players vor einer pausierten Übung sowie synchrone mobile Audiofreigabe vor dem Fortsetzen. Der Rücksprungtest prüft zehn Sekunden im pausierten Player, Begrenzung bei null, Erhalt der Pause und unmittelbare Übernahme durch die Falling-Notes-Position. Der Player-Test prüft zusätzlich Rücksprünge während der Wiedergabe, Freigabe alter Stimmen, neu passende Töne und Begrenzungen am Dateianfang/-ende sowie ungültige Positionswerte. C3-Firmware- und LittleFS-Build erfolgreich. Firmware 1.15.1 per USB übertragen und Flash-Hash verifiziert. Status-API bestätigt 1.15.1 und die WLAN-Verbindung; ausgelieferte app.js und midi-player.js stimmen bytegenau mit den Quellen überein. Die fünf Dateien unter dist/v1.15.1 wurden auf SHA-256-Prüfsummen, Paketversion und Übereinstimmung mit den aktuellen Images geprüft; USB-ZIP enthält ausschließlich die vorgesehenen Images und die Anleitung. Vorhandenes LittleFS wurde nicht überschrieben.
+
+## Falling Notes · Firmware 1.15.0 · 1. November 2026
+
+82 Node-Tests, 21 native Tests und 4 Python-Werkzeugtests bestanden. Vier neue Komponententests prüfen 49/61/76/88 Tasten und einen Bereich mit schwarzer Starttaste bei 320/768/1440 Pixeln, Balken-/Tastenmitten, 0,62-fache Breite schwarzer Tasten, Zeitfenster samt langen gehaltenen Noten, Vor-/Zurückspringen, exakte Releases, Pausen und eine einzige abbrechbare RAF-Schleife. Übungstempo, Einzähler, Pausen und originalgetreue Notendauern in Viertelschlägen werden berücksichtigt. Zwei neue DOM-Tests prüfen direkte Audiotakt-Positionen, pausierte Positionen, Positionswechsel ohne zusätzliche API-Befehle, einmaliges Sequenzladen, Wait-for-Note, bestätigte Treffer und den Ansichtswechsel. Bestehende Audio-/LED-/Lerntests bestehen weiter.
+
+C3-Firmware und LittleFS gebaut. Firmware per USB übertragen und Flash-Hash verifiziert; USB-Startlog sowie `/api/status` bestätigen 1.15.0 und die WLAN-Verbindung. Die ausgelieferte Falling-Notes-Komponente stimmt bytegenau mit der Quelle überein; die rein lesende Sequenzroute liefert gültiges JSON (im Leerlauf leere Sequenz). LittleFS wurde nicht geflasht, vorhandene Klaviersamples bleiben erhalten. Headless-Chrome hat die lokale Oberfläche mit simulierten API-/MIDI-Daten gerendert: 61 Tasten auf einer 820-Pixel-Tabletfläche und 88 Tasten auf einer 390 Pixel breiten Inhaltsfläche; Screenshots visuell auf korrekte Handfarben, Balken-/Tastenpositionen und lesbare Bedienelemente geprüft. Das sind Desktop-Chrome-Renderings, keine Tests auf einem echten iPhone/iPad und keine Messung garantierter 60 FPS. Physischer MIDI-Eingang wurde nicht geprüft.
+
+## Nextcloud-Uploadkompatibilität · Firmware 1.14.2 · 1. November 2026
+
+Im USB-Log gegen die echte Nextcloud erfasst: PUT antwortet nach 4.019 ms mit HTTP 412; alle 78.879 Bytes wurden aus der Warteschlange gelesen. MOVE wurde nicht ausgeführt. Damit ist der bisherige Hinweis auf einen vorhandenen endgültigen Dateinamen nicht belegt. Temporäre Dateiendung von `.part` auf `.tmp` geändert, weil Nextcloud `.part` gesondert behandelt; Der erneute Upload gegen die echte Nextcloud bestätigt die Korrektur im USB-Log: 78.879 Bytes, PUT HTTP 201 in 4.804 ms und MOVE HTTP 201 in 2.296 ms, anschließend „Erfolgreich gespeichert“. Der Nutzer hat den Erfolg ebenfalls bestätigt. If-None-Match:* und Overwrite:F bleiben erhalten. PUT 412 wird nun mit HTTP-Code statt als vorhandene Zieldatei gemeldet. 21 native Tests und C3-Build erfolgreich; Firmware per USB übertragen und Flash-Hash verifiziert.
+
+## Nextcloud-Uploaddiagnose · Firmware 1.14.1 · 1. November 2026
+
+Der tatsächliche fehlgeschlagene Upload meldete über die Status-API 43.079 angenommene und übertragene Bytes sowie „Datei existiert bereits oder Zielordner fehlt“. Diese ältere Meldung unterscheidet HTTP 409/412 und PUT/MOVE noch nicht. Deshalb getrennte serielle Protokollierung für PUT, MOVE und temporäres DELETE ergänzt, einschließlich Statuscode, Zeit, übertragenen Bytes, freiem Heap und Transportfehlern. Keine URL, Zugangsdaten oder Antwortinhalte werden ausgegeben. 21 native Tests und Formatprüfung bestanden; C3-Build erfolgreich und Firmware per USB übertragen, Flash-Hash verifiziert. Eine erneute Übertragung zur tatsächlichen Nextcloud ist für die weitere Fehlerzuordnung erforderlich.
+
+## Nextcloud-Speichern und lokale Favoriten · Firmware 1.14.0 · 1. November 2026
+
+76 Node-Tests, 21 native Tests und 4 Python-Werkzeugtests bestanden. Die drei neuen IndexedDB-Tests verwenden fake-indexeddb 6.0.0 und prüfen bytegenaues Wiederöffnen, Ersetzen ohne Duplikate, Entfernen beider Datensätze, fehlenden Browser-Speicher, ungültige Dateien sowie atomare Grenzen bei gleichzeitigen Schreibvorgängen (32 Dateien bzw. 32 MiB). Ein DOM-Test speichert einen Online-Treffer, öffnet eine neue Seite mit derselben Datenbank und prüft Import, Anhören, Entfernen und Wiederverwendung des Favoriten beim erneuten Öffnen des Online-Treffers ohne Download. Namen mit HTML-Zeichen bleiben Text. Der Nextcloud-Transporttest prüft wiederholte Blöcke nach verlorener Antwort, Rückstau der Warteschlange, Fehler, Abbruch und 100 % erst nach Abschlussbestätigung. Ein weiterer DOM-Test prüft Dateinamenabfrage, unveränderte MIDI-Bytes und Aktualisierung der Nextcloud-Liste nach Erfolg. DE-/EN-Abdeckung und Formatprüfung erfolgreich.
+
+C3-Firmwarebuild erfolgreich, reguläre Firmware per USB übertragen und Flash-Hash verifiziert. Die neue Status-API bestätigt 1.14.0; die ausgelieferten Favoriten- und Upload-Skripte entsprechen bytegenau den Quellen. Für den Hardwaretest wurde vorübergehend ausschließlich im RAM ein lokaler HTTP-WebDAV-Testserver mit Testzugang eingerichtet, anschließend die unveränderte reguläre main.cpp und Firmware wiederhergestellt. NVS-Zugangsdaten wurden nicht exportiert oder ersetzt; die ursprünglichen Nextcloud-Einstellungen und der Passwort-vorhanden-Status wurden anschließend verglichen und stimmen überein.
+
+Am echten C3 mit diesem Testserver geprüft: ungültige Dateinamen und Größen vor jedem Remotezugriff abgelehnt, gültige MIDI mit etwa 72 KiB über die 16-KiB-Warteschlange übertragen, wiederholten ersten Block nur einmal übernommen und die endgültigen Bytes nach PUT/MOVE vollständig verglichen. Die Testdatei enthielt 8192 Noten und wurde mit Unicode-/Leerzeichen im Dateinamen übertragen. Bei erneutem Upload auf denselben Namen blieb das vorhandene Ziel unverändert, der MOVE mit Overwrite:F schlug kontrolliert fehl und die temporäre Datei wurde gelöscht. Ein Abbruch veröffentlichte kein unvollständiges Ziel. HTTP-Basic-Testzugang, If-None-Match:* und Overwrite:F wurden auf dem Testserver geprüft. In der echten Nextcloud wurden keine Testdateien angelegt. Der Upload gegen den tatsächlichen Nextcloud-Server über HTTPS sowie Browser-Speicher auf einem echten iPhone sind noch nicht geprüft.
+
+## Logo und Browser-Symbole · Firmware 1.13.1 · 1. November 2026
+
+Eigenes SVG-Logo mit Klaviertasten und LED-Leiste gestaltet und als 512-Pixel-Rastervorschau visuell geprüft. ICO enthält 16-, 32- und 48-Pixel-Varianten, das Apple-Touch-Symbol ist 180 × 180 Pixel groß; Formate und Größen wurden aus den erzeugten Dateien geprüft. Die PNG-/ICO-Dateien lassen sich mit `python3 tools/build_icons.py` aus data/logo.svg neu erzeugen (Entwicklungswerkzeuge: librsvg/rsvg-convert und Pillow). Die fertigen Dateien werden wie die Oberfläche automatisch in die Firmware eingebettet; beim normalen Firmwarebuild sind diese Grafikwerkzeuge nicht nötig.
+
+69 Node-Tests, 21 native Tests und die Formatprüfung bestanden. C3-Firmware- und LittleFS-Build erfolgreich. Firmware per USB übertragen und Flash-Hash verifiziert; LittleFS nicht überschrieben. Die Status-API bestätigt 1.13.1. SVG, ICO und Apple-PNG wurden per HTTP/Gzip bytegenau mit den Quelldateien verglichen. Der erste SVG-Abruf hatte eine Netzwerk-Zeitüberschreitung, der Einzelabruf danach war erfolgreich; RSSI −86 dBm. Die tatsächliche Darstellung im Browser-Tab und auf einem iPhone-Startbildschirm wurde nicht visuell geprüft.
+
+## Exklusive Steuersitzung · Firmware 1.13.0 · 1. November 2026
+
+69 Node-Tests, 21 native Tests und 4 Python-Werkzeugtests bestanden, Formatprüfung erfolgreich. Ein DOM-Test mit zwei unabhängigen Browserfenstern bestätigt die anfängliche Sperre, die englische Übernahmefrage, ausdrückliche Übernahme mit erneuter Initialisierung, Stoppen des verdrängten Players und Ablehnung weiterer Befehle ohne automatische Rückübernahme. Uploadtests prüfen den Sitzungsheader und die Rückmeldung eines Sitzungskonflikts; der Recovery-DOM-Test berücksichtigt den Sitzungserwerb. Der portable C++-Test prüft ungültige Tokens, Besitzerwechsel, Erneuerung, Ablauf und millis-Überlauf.
+
+C3-Build und LittleFS-Build erfolgreich. Firmware per USB übertragen und Flash-Hash verifiziert; LittleFS nicht überschrieben. Am echten Gerät mit zwei unabhängigen HTTP-Sitzungskennungen geprüft: Befehle ohne Sitzung abgelehnt, zweiter Erwerb ohne Übernahme abgelehnt, alter Besitzer vor Übernahme steuerfähig, Testübung nach ausdrücklicher Übernahme pausiert, alter Status-/Trainings-/LED-/Download- und Multipart-Updatezugriff abgewiesen. Der neue Besitzer blieb steuerfähig. Nach 31 Sekunden ohne Lebenszeichen war der Erwerb ohne erzwungene Übernahme möglich; die vorherige Kennung blieb gesperrt. Die Testübung wurde anschließend beendet. Die tatsächlich ausgelieferten HTML- und app.js-Dateien wurden bytegenau mit den Quellen verglichen. Erste parallele HTTP-Abrufe liefen nach acht Sekunden in eine Zeitüberschreitung; die anschließenden längeren, sequenziellen Abrufe waren erfolgreich. Der gemessene RSSI betrug −88 dBm. Dies bestätigt das Protokoll am C3; eine visuelle Prüfung mit zwei echten mobilen Browsern steht noch aus.
 
 ## Optionale Anmeldung · Firmware 1.12.3 · 1. November 2026
 

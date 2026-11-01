@@ -27,6 +27,11 @@ void TrainerWebServer::updateUpload() {
         (!config.authEnabled || server.authenticate("admin", config.accessPassword.c_str())) &&
         server.header("X-Trainer") == "1";
     if (!updateAuthorized) return;
+    const String token = server.header("X-Session");
+    if (!session.renew(std::string_view(token.c_str(), token.length()), millis())) {
+      updateAuthorized = false;
+      return;
+    }
     if (library.busy() || wifi.connecting || rebootAt) {
       updateError = "Gerät ist beschäftigt. Bitte später erneut versuchen.";
       return;
@@ -194,7 +199,11 @@ document.querySelector('#restore').onsubmit=async e=>{e.preventDefault();if(busy
 const status=document.querySelector('#status'),button=document.querySelector('#send'),bar=document.querySelector('#progress');
 try{const file=document.querySelector('#file').files[0],header=JSON.parse(await file.slice(0,256).text());if(header.kind!=='firmware')throw Error('firmware.ptupdate erforderlich / Firmware package required');
 busy=true;button.disabled=true;bar.value=0;status.textContent='Übertragung / Upload …';
-const request=new XMLHttpRequest();request.open('POST','/api/update');request.setRequestHeader('X-Trainer','1');request.timeout=180000;
+const token=Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
+const claim=takeover=>fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Trainer':'1','X-Session':token},body:JSON.stringify({takeover})});
+let claimed=await claim(false);if(claimed.status===409&&confirm('Sitzung übernehmen? / Take over session?'))claimed=await claim(true);
+if(!claimed.ok)throw Error('Sitzung nicht verfügbar / Session unavailable');
+const request=new XMLHttpRequest();request.open('POST','/api/update');request.setRequestHeader('X-Trainer','1');request.setRequestHeader('X-Session',token);request.timeout=180000;
 request.upload.onprogress=e=>{if(e.lengthComputable)bar.value=Math.min(99,Math.round(e.loaded/e.total*100));};
 const finish=()=>{busy=false;button.disabled=false;};
 request.onload=()=>{finish();let reply;try{reply=JSON.parse(request.responseText);}catch{}if(request.status===200&&reply?.ok){bar.value=100;status.textContent='Erfolgreich. Neustart abwarten, dann Link öffnen. / Success. Wait for restart, then open the link.';}else status.textContent=reply?.error||'Fehlgeschlagen / Failed';};

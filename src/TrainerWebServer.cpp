@@ -18,7 +18,50 @@ bool TrainerWebServer::auth(bool mutation) {
     error(403, "Anfrage nicht erlaubt.");
     return false;
   }
+  if (server.uri().startsWith("/api/") && server.uri() != "/api/session" &&
+      (mutation || server.hasHeader("X-Session")) && !requireSession())
+    return false;
   return true;
+}
+bool TrainerWebServer::requireSession() {
+  const String token = server.header("X-Session");
+  if (session.renew(std::string_view(token.c_str(), token.length()), millis())) return true;
+  server.send(
+      409, "application/json",
+      "{\"error\":\"Sitzung in einem anderen Browser aktiv.\",\"code\":\"session_conflict\"}");
+  return false;
+}
+void TrainerWebServer::sessionRoutes() {
+  server.on("/api/session", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    StaticJsonDocument<128> doc;
+    if (!body(doc, 128)) return;
+    const String token = server.header("X-Session");
+    const auto key = std::string_view(token.c_str(), token.length());
+    if (!ControlSession::valid(key) || !doc["takeover"].is<bool>()) {
+      error(400, "Ungültige Sitzung.");
+      return;
+    }
+    if (updateStarted || rebootAt) {
+      error(409, "Gerät ist beschäftigt. Bitte später erneut versuchen.");
+      return;
+    }
+    const bool sameOwner = session.renew(key, millis());
+    if (!session.claim(key, millis(), doc["takeover"].as<bool>())) {
+      server.send(
+          409, "application/json",
+          "{\"error\":\"Sitzung in einem anderen Browser aktiv.\",\"code\":\"session_conflict\"}");
+      return;
+    }
+    if (!sameOwner) {
+      training.pause();
+      training.stopPreview();
+      midi.release();
+      leds.off();
+      library.cancel();
+    }
+    server.send(200, "application/json", "{\"ok\":true}");
+  });
 }
 void TrainerWebServer::error(int code, const String& msg) {
   Serial.printf("[HTTP] %s -> %d: %s\n", server.uri().c_str(), code, msg.c_str());
@@ -142,18 +185,29 @@ void TrainerWebServer::begin(bool filesystemReady) {
   libraryRoutes();
   lessonRoutes();
   maintenanceRoutes();
+  sessionRoutes();
   Serial.printf(
       "[HTTP] Oberfläche %s aus Firmware bereit; Samples: %s.\n", AppInfo::Version,
       fsReady && LittleFS.exists("/piano-samples.bin") ? "bereit" : "Synthesizer-Fallback");
-  const char* headers[] = {"X-Trainer", "Accept-Encoding"};
-  server.collectHeaders(headers, 2);
+  const char* headers[] = {"X-Trainer", "Accept-Encoding", "X-Session"};
+  server.collectHeaders(headers, 3);
   server.on("/", HTTP_GET, [this] { file("/index.html", "text/html; charset=utf-8"); });
   server.on("/recovery", HTTP_GET, [this] { recoveryPage(); });
   server.on("/style.css", HTTP_GET, [this] { file("/style.css", "text/css"); });
+  server.on("/logo.svg", HTTP_GET, [this] { file("/logo.svg", "image/svg+xml"); });
+  server.on("/favicon.ico", HTTP_GET, [this] { file("/favicon.ico", "image/x-icon"); });
+  server.on("/apple-touch-icon.png", HTTP_GET,
+            [this] { file("/apple-touch-icon.png", "image/png"); });
   server.on("/midi-file.js", HTTP_GET, [this] { file("/midi-file.js", "application/javascript"); });
   server.on("/library.js", HTTP_GET, [this] { file("/library.js", "application/javascript"); });
+  server.on("/midi-favorites.js", HTTP_GET,
+            [this] { file("/midi-favorites.js", "application/javascript"); });
+  server.on("/nextcloud-upload.js", HTTP_GET,
+            [this] { file("/nextcloud-upload.js", "application/javascript"); });
   server.on("/midi-player.js", HTTP_GET,
             [this] { file("/midi-player.js", "application/javascript"); });
+  server.on("/falling-notes.js", HTTP_GET,
+            [this] { file("/falling-notes.js", "application/javascript"); });
   server.on("/piano-audio.js", HTTP_GET,
             [this] { file("/piano-audio.js", "application/javascript"); });
   server.on("/piano-samples.bin", HTTP_GET,

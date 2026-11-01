@@ -25,6 +25,8 @@ let libraryBusy = false,
   librarySettings = null,
   cloudListLoaded = false;
 let remoteMidi = null;
+const favorites = new window.MidiFavorites.Store();
+const cloudUploader = new window.NextcloudUpload.Client(api);
 const libraryClient = new window.MidiLibrary.Client(api);
 const midiPlayer = new window.MidiPlayer.Player(renderPlayback);
 let playbackName = "";
@@ -72,8 +74,87 @@ $("#toggleNavigation").onclick = () => {
     localStorage.setItem("navigationCollapsed", String(collapsed));
   } catch {}
 };
+const sessionToken = Array.from(
+  crypto.getRandomValues(new Uint8Array(16)),
+  (n) => n.toString(16).padStart(2, "0"),
+).join("");
+window.trainerSessionToken = sessionToken;
+window.trainerSessionLost = blockSession;
+let sessionOwned = false,
+  sessionBlocked = false,
+  sessionPending = null,
+  pollingStarted = false;
+function blockSession() {
+  sessionOwned = false;
+  sessionBlocked = true;
+  fallingView.setVisible(false);
+  silence();
+  held.clear();
+  midiPlayer.stop();
+  document
+    .querySelectorAll(".pressed")
+    .forEach((key) => key.classList.remove("pressed"));
+  $("#sessionBlock").hidden = false;
+  $(".layout").inert = true;
+  $("#takeSession").focus();
+}
+async function claimSession(takeover = false) {
+  const response = await fetch("/api/session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Trainer": "1",
+      "X-Session": sessionToken,
+    },
+    body: JSON.stringify({ takeover }),
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    if (result.code === "session_conflict") blockSession();
+    throw Error(result.error || "Ungültige Geräteantwort.");
+  }
+  sessionOwned = true;
+  sessionBlocked = false;
+  $("#sessionBlock").hidden = true;
+  $(".layout").inert = false;
+}
+async function ensureSession() {
+  if (sessionBlocked) throw Error("Sitzung in einem anderen Browser aktiv.");
+  if (sessionOwned) return;
+  if (!sessionPending)
+    sessionPending = claimSession().finally(() => {
+      sessionPending = null;
+    });
+  return sessionPending;
+}
+$("#takeSession").onclick = () =>
+  run(async () => {
+    const button = $("#takeSession");
+    button.disabled = true;
+    try {
+      await claimSession(true);
+      await initialize();
+    } finally {
+      button.disabled = false;
+    }
+  });
+async function sessionFetch(url, options = {}) {
+  await ensureSession();
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...options.headers, "X-Session": sessionToken },
+  });
+  if (response.status === 409) {
+    const detail = await response.clone().json();
+    if (detail.code === "session_conflict") blockSession();
+  }
+  return response;
+}
+libraryClient.fetch = sessionFetch;
 async function api(path, body) {
-  const response = await fetch("/api/" + path, {
+  const response = await sessionFetch("/api/" + path, {
     method: body === undefined ? "GET" : "POST",
     headers:
       body === undefined
@@ -151,6 +232,7 @@ function route() {
   }
   if (hash === "training") loadCloudListOnce();
   if (hash === "training") loadLessons(true);
+  refreshFallingVisibility();
   if (hash !== "training" && libraryBusy)
     libraryClient.cancel().catch(() => {});
 }
@@ -682,7 +764,7 @@ function renderStatus(s) {
 }
 async function poll() {
   try {
-    if (!document.hidden && !maintenanceBusy) {
+    if (!document.hidden && !maintenanceBusy && !sessionBlocked) {
       status = await api("status");
       renderStatus(status);
     }
@@ -715,10 +797,11 @@ setInterval(() => {
   )
     noteCommand({ heartbeat: true });
 }, 900);
-run(async () => {
+async function initialize() {
   await I18n.ready;
   status = await api("status");
   renderStatus(status);
+  $("#pin").replaceChildren();
   status.pins.forEach((pin) => {
     const o = document.createElement("option");
     o.value = pin;
@@ -731,10 +814,15 @@ run(async () => {
   renderPresetCatalog(lesson.presets);
   if (lesson.training) renderTraining(lesson.training);
   await loadLibrarySettings();
+  await refreshFavorites();
   route();
   if (!status.connected) location.hash = "wifi";
-  poll();
-});
+  if (!pollingStarted) {
+    pollingStarted = true;
+    poll();
+  }
+}
+run(initialize);
 
 function trainingRunning() {
   return trainingView && ["playing", "countin"].includes(trainingView.state);
@@ -744,6 +832,12 @@ async function trainingCommand(body) {
   await release();
   await commandQueue;
   const reply = await api("training", body);
+  if (body.command === "start") {
+    importedSequenceId =
+      body.preset === "custom" ? reply.training?.sequenceId : null;
+    importedRunDurations = body.preset === "custom" ? importedDurations : null;
+    fallingTrainingCache = null;
+  }
   if (reply.training) renderTraining(reply.training);
   return reply;
 }
@@ -787,6 +881,12 @@ $("#trainingRelease").onclick = () => {
   noteCommand({ release: true });
 };
 function renderTraining(t) {
+  if (
+    trainingView &&
+    t.sequenceId === trainingView.sequenceId &&
+    t.correct > trainingView.correct
+  )
+    fallingView.flash(trainingView.expected || []);
   trainingView = t;
   trainingReceivedAt = performance.now();
   const labels = {
@@ -824,6 +924,7 @@ function renderTraining(t) {
   );
   $("#trainingPause").disabled = !trainingRunning();
   $("#trainingResume").disabled = t.state !== "paused";
+  updateFallingPause();
   document.querySelectorAll(".key").forEach((key) => {
     const n = Number(key.dataset.noteValue);
     key.classList.toggle("playback", !!t.preview && (t.held || []).includes(n));
@@ -834,6 +935,7 @@ function renderTraining(t) {
     );
   });
   renderScore();
+  loadFallingSequence();
   paintTrainingTime();
   if (t.lesson && ["playing", "countin"].includes(t.state))
     lastLessonCompletion = "";
@@ -908,7 +1010,8 @@ async function importSelectedMidi() {
   const file = remoteMidi || $("#midiFile").files[0];
   if (!file) throw Error("Bitte eine MIDI-Datei auswählen.");
   if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
-  const result = window.MidiFile.parse(await file.arrayBuffer(), {
+  const bytes = await file.arrayBuffer();
+  const result = window.MidiFile.parse(bytes, {
     channel: Number($("#importChannel").value),
     transpose: Number($("#importTranspose").value),
     startStep: Number($("#importStart").value) - 1,
@@ -918,6 +1021,36 @@ async function importSelectedMidi() {
       : 127,
   });
   importedSteps = result.steps;
+  const performance = window.MidiFile.parse(bytes, {
+    performanceOnly: true,
+    channel: Number($("#importChannel").value),
+    transpose: Number($("#importTranspose").value),
+    minNote: $("#importRange").checked ? config.baseNote : 0,
+    maxNote: $("#importRange").checked
+      ? config.baseNote + config.keys - 1
+      : 127,
+  });
+  const durations = new Map();
+  for (const note of performance.notes) {
+    const key =
+      Math.round((note.beat + performance.originBeat) * 8) + ":" + note.note;
+    durations.set(
+      key,
+      Math.max(
+        durations.get(key) || 0,
+        note.durationBeats || (note.duration * performance.bpm) / 60,
+      ),
+    );
+  }
+  importedDurations = result.stepBeats.map((beat, index) =>
+    Object.fromEntries(
+      result.steps[index].notes.map((note) => [
+        note,
+        durations.get(Math.round(beat * 8) + ":" + note),
+      ]),
+    ),
+  );
+  fallingTrainingCache = null;
   const option = $('#trainingPreset option[value="custom"]');
   option.disabled = false;
   I18n.text(option, () => I18n.t("MIDI: ") + file.name);
@@ -1092,7 +1225,7 @@ function audioError(e) {
   toast("Tonausgabe: " + e.message, true);
 }
 function soundOn(note, velocity) {
-  if (!$("#soundEnabled").checked) return;
+  if (!sessionOwned || !$("#soundEnabled").checked) return;
   try {
     audioReady().catch(audioError);
     soundOff(note);
@@ -1160,6 +1293,219 @@ function soundOff(note) {
 function silence() {
   [...voices.keys()].forEach(soundOff);
 }
+
+// Falling Notes only reads playback/training snapshots. It never sends MIDI or LED events.
+let fallingSequence = null,
+  fallingSequencePending = null,
+  fallingSequenceFailed = null;
+let fallingTrainingCache = null,
+  fallingPlaybackSource = null,
+  fallingPlaybackTimeline = null;
+let importedDurations = null,
+  importedRunDurations = null,
+  importedSequenceId = null;
+const emptyFallingTimeline = new FallingNotes.Timeline();
+const fallingView = new FallingNotes.View($("#fallingCanvas"), fallingSnapshot);
+function refreshFallingVisibility() {
+  const enabled = $("#trainingDisplay").value === "falling";
+  if (!enabled || $("#training").hidden) setFallingFocus(false);
+  $("#fallingPanel").hidden = !enabled;
+  fallingView.setVisible(
+    enabled && !$("#training").hidden && !document.hidden && !sessionBlocked,
+  );
+  if (enabled) loadFallingSequence();
+}
+function updateFallingPause() {
+  const player = ["playing", "paused"].includes(midiPlayer.state);
+  $("#fallingBack").disabled =
+    !midiPlayer.performance ||
+    !["playing", "paused", "completed"].includes(midiPlayer.state);
+  const state = player ? midiPlayer.state : trainingView?.state;
+  $("#fallingPause").disabled = !["playing", "countin", "paused"].includes(
+    state,
+  );
+  I18n.text($("#fallingPause"), () =>
+    I18n.t(state === "paused" ? "Fortsetzen" : "Pause"),
+  );
+}
+$("#fallingPause").onclick = () => {
+  if (["playing", "paused"].includes(midiPlayer.state))
+    $("#pauseMidi").onclick();
+  else if (trainingView?.state === "paused") $("#trainingResume").click();
+  else if (trainingRunning()) $("#trainingPause").click();
+};
+$("#fallingBack").onclick = () => {
+  const source = midiPlayer.performance;
+  if (!source || !["playing", "paused", "completed"].includes(midiPlayer.state))
+    return;
+  const position =
+    midiPlayer.state === "playing"
+      ? midiPlayer.context.currentTime - midiPlayer.started
+      : midiPlayer.position;
+  const target = Math.max(0, position - 10);
+  if (midiPlayer.state !== "playing") {
+    midiPlayer.seek(target);
+    return;
+  }
+  try {
+    const unlocked = midiPlayer.unlock();
+    run(async () => {
+      await unlocked;
+      if (midiPlayer.performance === source) midiPlayer.seek(target);
+    });
+  } catch (error) {
+    toast(error.message, true);
+  }
+};
+function loadFallingSequence() {
+  const t = trainingView;
+  if (
+    $("#trainingDisplay").value !== "falling" ||
+    !t ||
+    t.state === "idle" ||
+    !Number.isInteger(t.sequenceId) ||
+    t.sequenceId === fallingSequence?.id ||
+    t.sequenceId === fallingSequenceFailed ||
+    fallingSequencePending
+  )
+    return;
+  const id = t.sequenceId;
+  fallingSequencePending = api("training/sequence")
+    .then((reply) => {
+      if (reply.id !== trainingView?.sequenceId || !Array.isArray(reply.steps))
+        return;
+      fallingSequence = reply;
+      fallingTrainingCache = null;
+      I18n.text($("#fallingStatus"), () =>
+        I18n.t("Synchron zur Wiedergabe · Blau links, Grün rechts."),
+      );
+    })
+    .catch(() => {
+      fallingSequenceFailed = id;
+      I18n.text($("#fallingStatus"), () =>
+        I18n.t(
+          "Vorschau konnte nicht vollständig geladen werden. Ansicht erneut wählen, um es noch einmal zu versuchen.",
+        ),
+      );
+    })
+    .finally(() => {
+      fallingSequencePending = null;
+    });
+}
+function fallingSnapshot(now) {
+  if (!config) return null;
+  const common = {
+    base: config.baseNote,
+    keys: config.keys,
+    held: [
+      ...new Set([
+        ...(trainingView?.held || []),
+        ...[...held.values()].map((h) => h.note),
+      ]),
+    ],
+  };
+  if (
+    ["playing", "paused", "completed"].includes(midiPlayer.state) &&
+    midiPlayer.performance
+  ) {
+    if (fallingPlaybackSource !== midiPlayer.performance) {
+      fallingPlaybackSource = midiPlayer.performance;
+      fallingPlaybackTimeline = new FallingNotes.Timeline(
+        midiPlayer.performance.notes,
+      );
+    }
+    return {
+      ...common,
+      held: [...held.values()].map((h) => h.note),
+      timeline: fallingPlaybackTimeline,
+      position:
+        midiPlayer.state === "playing"
+          ? Math.min(
+              midiPlayer.performance.duration,
+              midiPlayer.context.currentTime - midiPlayer.started,
+            )
+          : midiPlayer.position,
+    };
+  }
+  const t = trainingView;
+  if (t && !t.preview && t.state !== "idle") {
+    if (fallingSequence?.id === t.sequenceId) {
+      const key = t.sequenceId + ":" + t.bpm + ":" + t.timed;
+      if (fallingTrainingCache?.key !== key)
+        fallingTrainingCache = {
+          key,
+          ...FallingNotes.trainingNotes(
+            fallingSequence.steps,
+            t.bpm,
+            t.countInMs / 1000,
+            importedSequenceId === t.sequenceId ? importedRunDurations : null,
+          ),
+        };
+      const running = ["playing", "countin"].includes(t.state);
+      const position = t.timed
+        ? (t.elapsedMs +
+            (running
+              ? Math.min(1500, Math.max(0, now - trainingReceivedAt))
+              : 0)) /
+          1000
+        : (fallingTrainingCache.times[t.index] ?? Infinity);
+      return {
+        ...common,
+        timeline: fallingTrainingCache.timeline,
+        position: t.state === "completed" ? Infinity : position,
+      };
+    }
+    // Compatibility with older firmware: limited rolling window, no new control path.
+    const start = (t.nextTimeMs ?? t.elapsedMs + t.dueInMs) / 1000;
+    const sequence = FallingNotes.trainingNotes(t.upcoming || [], t.bpm, start);
+    return {
+      ...common,
+      timeline: sequence.timeline,
+      position: t.timed
+        ? (t.elapsedMs +
+            (["playing", "countin"].includes(t.state)
+              ? Math.min(1500, now - trainingReceivedAt)
+              : 0)) /
+          1000
+        : start,
+    };
+  }
+  return { ...common, timeline: emptyFallingTimeline, position: 0 };
+}
+$("#trainingDisplay").onchange = () => {
+  fallingSequenceFailed = null;
+  refreshFallingVisibility();
+  try {
+    localStorage.setItem("trainingDisplay", $("#trainingDisplay").value);
+  } catch {}
+};
+try {
+  $("#trainingDisplay").value =
+    localStorage.getItem("trainingDisplay") === "falling"
+      ? "falling"
+      : "standard";
+} catch {}
+$("#fallingPreview").onchange = () => {
+  fallingView.preview = Number($("#fallingPreview").value);
+};
+$("#fallingSplit").onchange = () => {
+  fallingView.split = Number($("#fallingSplit").value);
+};
+function setFallingFocus(enabled) {
+  document.body.classList.toggle("falling-focus", enabled);
+  $("#fallingFocus").setAttribute("aria-expanded", String(enabled));
+  I18n.text($("#fallingFocus"), () =>
+    I18n.t(enabled ? "Ansicht verkleinern" : "Ansicht vergrößern"),
+  );
+}
+$("#fallingFocus").onclick = () =>
+  setFallingFocus(!document.body.classList.contains("falling-focus"));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setFallingFocus(false);
+});
+document.addEventListener("visibilitychange", refreshFallingVisibility);
+window.addEventListener("pagehide", () => fallingView.destroy());
+refreshFallingVisibility();
 
 // Code-native notation: pitch preview from the same rolling device sequence as training.
 function scorePreference(id, fallback) {
@@ -1425,12 +1771,187 @@ function renderScore() {
   );
 }
 
+// Browser-local favorites keep complete MIDI files, without using C3 flash or RAM.
+function favoriteKey(file, source) {
+  return JSON.stringify([
+    source,
+    source === "nextcloud" ? librarySettings?.folder : "",
+    file.path || file.id || file.name,
+  ]);
+}
+async function libraryFile(file, source) {
+  if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
+  const cached = await favorites
+    .get(favoriteKey(file, source))
+    .catch(() => null);
+  if (cached) return new Uint8Array(cached.bytes);
+  return libraryDownload(
+    source === "nextcloud"
+      ? { source, action: "file", name: file.name }
+      : {
+          source,
+          action: "file",
+          id: file.id,
+          ...(source === "midicollection" ? { path: file.path } : {}),
+        },
+  );
+}
+async function saveFavorite(id, name, bytes) {
+  window.MidiFile.parse(bytes, { performanceOnly: true });
+  await favorites.save(id, name, bytes);
+  await refreshFavorites();
+  I18n.text(
+    $("#favoritesStatus"),
+    () => I18n.t("Favorit gespeichert: ") + name,
+  );
+}
+function selectFavorite(record) {
+  midiPlayer.stop("Andere MIDI ausgewählt");
+  remoteMidi = {
+    name: record.name,
+    size: record.bytes.byteLength,
+    favoriteId: record.id,
+    arrayBuffer: async () => record.bytes.slice(0),
+  };
+  $("#midiFile").value = "";
+  $("#importStart").value = "1";
+}
+async function refreshFavorites() {
+  try {
+    const entries = await favorites.list(),
+      list = $("#favoriteFiles");
+    list.replaceChildren();
+    if (!entries.length) {
+      const row = document.createElement("li");
+      I18n.text(row, () => I18n.t("Noch keine Favoriten gespeichert."));
+      list.append(row);
+    }
+    for (const file of entries) {
+      const row = document.createElement("li"),
+        title = document.createElement("strong"),
+        actions = document.createElement("div");
+      title.textContent = file.name;
+      actions.className = "library-file-actions";
+      const button = (text, handler) => {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "secondary";
+        I18n.text(element, () => I18n.t(text));
+        element.onclick = handler;
+        actions.append(element);
+      };
+      const load = async () => {
+        const record = await favorites.get(file.id);
+        if (!record)
+          throw Error("Favorit nicht mehr vorhanden. Liste neu laden.");
+        selectFavorite(record);
+      };
+      button("Übernehmen", () =>
+        run(async () => {
+          await load();
+          await importSelectedMidi();
+        }),
+      );
+      button("Anhören", () => {
+        try {
+          const unlocked = midiPlayer.unlock();
+          run(async () => {
+            await unlocked;
+            await load();
+            await playSelectedMidi();
+          });
+        } catch (error) {
+          toast(error.message, true);
+        }
+      });
+      button("Entfernen", () =>
+        run(async () => {
+          if (
+            !confirm(
+              I18n.t("Favorit aus diesem Browser entfernen?") + " " + file.name,
+            )
+          )
+            return;
+          await favorites.remove(file.id);
+          await refreshFavorites();
+        }),
+      );
+      row.append(title, actions);
+      list.append(row);
+    }
+    I18n.text(
+      $("#favoritesStatus"),
+      () => I18n.t("Gespeicherte Favoriten: ") + entries.length,
+    );
+  } catch (error) {
+    I18n.text($("#favoritesStatus"), () => I18n.t(error.message));
+  }
+}
+$("#saveFavorite").onclick = () =>
+  run(async () => {
+    const file = remoteMidi || $("#midiFile").files[0];
+    if (!file) throw Error("Bitte zuerst eine MIDI-Datei auswählen.");
+    if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
+    const id =
+      file.favoriteId ||
+      JSON.stringify(["local", file.name, file.size, file.lastModified || 0]);
+    await saveFavorite(id, file.name, await file.arrayBuffer());
+  });
+$("#saveNextcloud").onclick = () =>
+  run(async () => {
+    if (libraryBusy) throw Error("Bitte den laufenden Download abwarten.");
+    if (!librarySettings?.folder)
+      throw Error(
+        "Zuerst das Nextcloud-Verzeichnis in den Import-Einstellungen hinterlegen.",
+      );
+    const file = remoteMidi || $("#midiFile").files[0];
+    if (!file) throw Error("Bitte zuerst eine MIDI-Datei auswählen.");
+    if (file.size > 2097152) throw Error("MIDI-Datei ist größer als 2 MiB.");
+    const proposed = file.name.replace(/[\\/\x00-\x1f]/g, "_");
+    const name = prompt(
+      I18n.t("Dateiname in Nextcloud (vorhandene Dateien bleiben erhalten):"),
+      /\.midi?$/i.test(proposed) ? proposed : proposed + ".mid",
+    );
+    if (name === null) return;
+    if (!name.trim() || !/\.midi?$/i.test(name) || /[\\/\x00-\x1f]/.test(name))
+      throw Error("Ungültiger MIDI-Dateiname.");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    window.MidiFile.parse(bytes, { performanceOnly: true });
+    midiPlayer.stop("MIDI-Bibliothek wird geladen");
+    setLibraryBusy(true);
+    try {
+      await commandQueue;
+      await cloudUploader.run(name, bytes, (percent) =>
+        I18n.text(
+          $("#libraryStatus"),
+          () => I18n.t("Speichere in Nextcloud: ") + percent + " %",
+        ),
+      );
+    } catch (error) {
+      I18n.text($("#libraryStatus"), () => I18n.t(error.message));
+      throw error;
+    } finally {
+      setLibraryBusy(false);
+    }
+    cloudListLoaded = false;
+    try {
+      await refreshCloud();
+      cloudListLoaded = true;
+    } catch {
+      toast("Datei gespeichert. Nextcloud-Liste erneut aktualisieren.", true);
+    }
+    I18n.text(
+      $("#libraryStatus"),
+      () => I18n.t("In Nextcloud gespeichert: ") + name,
+    );
+  });
+
 // Shared library UI: all sources feed the same local MIDI parser above.
 function setLibraryBusy(busy) {
   libraryBusy = busy;
   document
     .querySelectorAll(
-      "#cloudRefresh, #midiSearchForm button, .midi-library-list button, #cloudSettingsForm button, #searchPager button",
+      "#cloudRefresh, #saveNextcloud, #midiSearchForm button, .midi-library-list button, #cloudSettingsForm button, #searchPager button",
     )
     .forEach((button) => (button.disabled = busy));
   $("#libraryCancel").hidden = !busy;
@@ -1523,17 +2044,9 @@ function renderLibraryList(id, result, source) {
       run(async () => {
         if (file.size > 2097152)
           throw Error("MIDI-Datei ist größer als 2 MiB.");
-        const bytes = await libraryDownload(
-          source === "nextcloud"
-            ? { source, action: "file", name: file.name }
-            : {
-                source,
-                action: "file",
-                id: file.id,
-                ...(source === "midicollection" ? { path: file.path } : {}),
-              },
-        );
+        const bytes = await libraryFile(file, source);
         remoteMidi = {
+          favoriteId: favoriteKey(file, source),
           name: file.name,
           size: bytes.length,
           arrayBuffer: async () => bytes.buffer,
@@ -1575,17 +2088,9 @@ function renderLibraryList(id, result, source) {
       run(async () => {
         await unlock;
         midiPlayer.stop("Andere MIDI ausgewählt");
-        const bytes = await libraryDownload(
-          source === "nextcloud"
-            ? { source, action: "file", name: file.name }
-            : {
-                source,
-                action: "file",
-                id: file.id,
-                ...(source === "midicollection" ? { path: file.path } : {}),
-              },
-        );
+        const bytes = await libraryFile(file, source);
         remoteMidi = {
+          favoriteId: favoriteKey(file, source),
           name: file.name,
           size: bytes.length,
           arrayBuffer: async () => bytes.buffer,
@@ -1596,7 +2101,23 @@ function renderLibraryList(id, result, source) {
     };
     const actions = document.createElement("div");
     actions.className = "library-file-actions";
-    actions.append(button, listen);
+    const favorite = document.createElement("button");
+    favorite.type = "button";
+    favorite.className = "secondary";
+    I18n.text(favorite, () => I18n.t("Als Favorit speichern"));
+    favorite.onclick = () =>
+      run(async () => {
+        const bytes = await libraryFile(file, source);
+        await saveFavorite(
+          favoriteKey(file, source),
+          file.name,
+          bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength,
+          ),
+        );
+      });
+    actions.append(button, listen, favorite);
     row.append(text, actions);
     list.append(row);
   });
@@ -1640,8 +2161,16 @@ async function refreshCloud() {
 $("#cloudRefresh").onclick = () => run(refreshCloud);
 $("#libraryCancel").onclick = () =>
   run(async () => {
+    const uploading = Boolean(cloudUploader.current);
+    await cloudUploader.cancel();
     await libraryClient.cancel();
-    I18n.text($("#libraryStatus"), () => I18n.t("Download wird abgebrochen …"));
+    I18n.text($("#libraryStatus"), () =>
+      I18n.t(
+        uploading
+          ? "Nextcloud-Upload wird abgebrochen …"
+          : "Download wird abgebrochen …",
+      ),
+    );
   });
 let lastLibrarySearch = 0;
 let onlineSearch = { source: "midisss", query: "", page: 1, pages: 1 };
@@ -1760,6 +2289,7 @@ $("#cloudSettingsForm").onsubmit = (event) => {
 
 function renderPlayback(view) {
   playbackView = view;
+  updateFallingPause();
   playbackLeds(view);
   const format = (seconds) =>
     Math.floor(seconds / 60) +
@@ -1862,6 +2392,7 @@ function drainPlaybackLeds() {
   });
 }
 function playbackLeds(view) {
+  if (!sessionOwned) return;
   if (view.state !== "playing") {
     if (playbackLedActive) {
       playbackLedActive = false;

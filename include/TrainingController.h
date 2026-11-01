@@ -7,6 +7,7 @@ class TrainingController {
  public:
   TrainingController(LedController& leds, const LedConfig& config) : leds(leds), config(config) {}
   TrainingEngine engine;
+  uint32_t sequenceId = 0;
   String exercise = "Freies Spiel";
   bool start(LearningMode mode, const TrainingSequence& sequence, int bpm, int tolerance,
              bool timed, String& error);

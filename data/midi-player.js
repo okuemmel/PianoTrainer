@@ -254,6 +254,29 @@
         ...this.scoreStatus(position),
       });
     }
+    seek(position) {
+      if (
+        !this.performance ||
+        !["playing", "paused", "completed"].includes(this.state)
+      )
+        return;
+      if (!Number.isFinite(position)) return;
+      const offset = Math.max(0, Math.min(this.performance.duration, position));
+      if (this.state === "playing") {
+        this.play(this.performance, offset);
+        return;
+      }
+      this.stop();
+      this.position = offset;
+      this.state = "paused";
+      this.notify({
+        state: "paused",
+        position: offset,
+        duration: this.performance.duration,
+        notes: [],
+        ...this.scoreStatus(offset),
+      });
+    }
     resume() {
       if (this.state === "paused") this.play(this.performance, this.position);
     }

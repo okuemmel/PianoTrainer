@@ -29,6 +29,8 @@
       const request = new XHR();
       request.open("POST", "/api/update");
       request.setRequestHeader("X-Trainer", "1");
+      if (root.trainerSessionToken)
+        request.setRequestHeader("X-Session", root.trainerSessionToken);
       request.timeout = 180000;
       request.upload.onprogress = (event) => {
         if (event.lengthComputable)
@@ -41,6 +43,7 @@
         try {
           reply = JSON.parse(request.responseText);
         } catch {}
+        if (reply?.code === "session_conflict") root.trainerSessionLost?.();
         if (request.status >= 200 && request.status < 300 && reply?.ok)
           resolve(reply);
         else

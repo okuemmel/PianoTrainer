@@ -5,12 +5,18 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#10151e" />
     <title>MIDI · Piano Trainer</title>
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="stylesheet" href="/style.css" />
     <script defer src="/i18n.js"></script>
     <script defer src="/midi-file.js"></script>
     <script defer src="/library.js"></script>
+    <script defer src="/midi-favorites.js"></script>
+    <script defer src="/nextcloud-upload.js"></script>
     <script defer src="/piano-audio.js"></script>
     <script defer src="/midi-player.js"></script>
+    <script defer src="/falling-notes.js"></script>
     <script defer src="/maintenance.js"></script>
     <script defer src="/app.js"></script>
   </head>
@@ -29,8 +35,13 @@
           <span aria-hidden="true">☰</span>
         </button>
         <a class="brand" href="#dashboard"
-          ><span class="mark">▥</span
-          ><span
+          ><img
+            class="brand-logo"
+            src="/logo.svg"
+            width="44"
+            height="44"
+            alt=""
+          /><span
             >PIANO<span class="muted"> / TRAINER</span
             ><small>MIDI LED STUDIO · TRAINING</small></span
           ></a
@@ -339,6 +350,76 @@
               ><span>Trefferquote <b id="trainingAccuracy">0 %</b></span
               ><span>Timing Ø <b id="trainingTiming">—</b></span>
             </div>
+            <div class="falling-toolbar">
+              <label
+                >Ansicht<select id="trainingDisplay">
+                  <option value="standard">Klassisch</option>
+                  <option value="falling">Falling Notes</option>
+                </select></label
+              >
+            </div>
+            <div id="fallingPanel" hidden>
+              <div class="falling-toolbar">
+                <label
+                  >Vorschau<select id="fallingPreview">
+                    <option value="2">2 s</option>
+                    <option value="4" selected>4 s</option>
+                    <option value="6">6 s</option>
+                    <option value="8">8 s</option>
+                  </select></label
+                >
+                <label
+                  >Rechte Hand ab<select id="fallingSplit">
+                    <option value="48">C3</option>
+                    <option value="60" selected>C4</option>
+                    <option value="72">C5</option>
+                  </select></label
+                >
+                <button
+                  id="fallingPause"
+                  type="button"
+                  class="secondary"
+                  disabled
+                >
+                  Pause
+                </button>
+                <button
+                  id="fallingBack"
+                  type="button"
+                  class="secondary"
+                  title="10 Sekunden zurück · MIDI-Player"
+                  disabled
+                >
+                  10 s zurück
+                </button>
+                <button
+                  id="fallingFocus"
+                  type="button"
+                  class="secondary"
+                  aria-expanded="false"
+                >
+                  Ansicht vergrößern
+                </button>
+                <span class="falling-legend"
+                  ><i class="left-hand"></i> Linke Hand
+                  <i class="right-hand"></i> Rechte Hand</span
+                >
+              </div>
+              <div class="falling-viewport">
+                <canvas
+                  id="fallingCanvas"
+                  role="img"
+                  aria-label="Fallende MIDI-Noten mit virtueller Klaviatur"
+                ></canvas>
+              </div>
+              <p id="fallingStatus" class="hint" role="status"></p>
+              <p class="hint">
+                Handfarben nach Trennnote, keine automatische
+                Fingersatz-Erkennung. Im Wartemodus bleibt die aktuelle Note an
+                der Trefferlinie. Virtuelle Tasten darunter dienen weiterhin als
+                MIDI-Eingang.
+              </p>
+            </div>
             <label class="check-option"
               ><input id="showScore" type="checkbox" /> Noten anzeigen · Übung
               &amp; Player</label
@@ -371,7 +452,25 @@
           </article>
           <article class="foldable-card">
             <details id="libraryPanel">
-              <summary>MIDI-Bibliothek · Nextcloud &amp; Online-Suche</summary>
+              <summary>
+                MIDI-Bibliothek · Favoriten, Nextcloud &amp; Online-Suche
+              </summary>
+              <div class="row">
+                <h3>Deine Favoriten</h3>
+                <button id="saveFavorite" class="secondary" type="button">
+                  Ausgewählte MIDI als Favorit speichern
+                </button>
+                <button id="saveNextcloud" class="secondary" type="button">
+                  Ausgewählte MIDI in Nextcloud speichern
+                </button>
+              </div>
+              <p class="hint">
+                Dateien bleiben in diesem Browser gespeichert. Bis zu 32 MIDIs
+                mit zusammen 32 MiB. Browserdaten löschen entfernt die
+                Favoriten; andere Geräte oder Adressen haben eine eigene Liste.
+              </p>
+              <p id="favoritesStatus" class="hint" role="status"></p>
+              <ul id="favoriteFiles" class="midi-library-list"></ul>
               <div class="row">
                 <h2>MIDI-Bibliothek</h2>
                 <a href="#imports">Nextcloud einstellen →</a>
@@ -1025,5 +1124,26 @@
       </main>
     </div>
     <div id="toast" role="status" aria-live="polite" hidden></div>
+    <div
+      id="sessionBlock"
+      class="session-block"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sessionTitle"
+      hidden
+    >
+      <article>
+        <h2 id="sessionTitle">Sitzung übernehmen?</h2>
+        <p>
+          Der Trainer wird in einem anderen Browser verwendet. Bei der Übernahme
+          wird dessen Steuerung gesperrt und eine laufende Übung pausiert.
+        </p>
+        <button id="takeSession" type="button">Sitzung übernehmen</button>
+        <p class="hint">
+          Ohne Übernahme bleibt diese Seite gesperrt. Nach 30 Sekunden ohne
+          Lebenszeichen wird die Sitzung wieder verfügbar.
+        </p>
+      </article>
+    </div>
   </body>
 </html>

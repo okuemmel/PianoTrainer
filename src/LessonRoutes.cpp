@@ -19,6 +19,27 @@ void TrainerWebServer::trainingSnapshot(JsonObject object) {
   object["lessonSaved"] = active && lessonSaved;
 }
 void TrainerWebServer::lessonRoutes() {
+  server.on("/api/training/sequence", HTTP_GET, [this] {
+    if (!auth()) return;
+    // Read-only visualization data, fetched once per exercise rather than each poll.
+    DynamicJsonDocument doc(24576);
+    doc["id"] = training.sequenceId;
+    auto steps = doc.createNestedArray("steps");
+    for (int i = 0; i < training.engine.sequence.count; ++i) {
+      const auto& step = training.engine.sequence.steps[i];
+      auto item = steps.createNestedObject();
+      item["ticks"] = step.ticks;
+      auto notes = item.createNestedArray("notes");
+      for (int j = 0; j < step.count; ++j) notes.add(step.notes[j]);
+    }
+    if (doc.overflowed()) {
+      error(503,
+            "Vorschau konnte nicht vollständig geladen werden. Ansicht erneut wählen, um es noch "
+            "einmal zu versuchen.");
+      return;
+    }
+    json(200, doc);
+  });
   server.on("/api/lessons", HTTP_GET, [this] {
     if (!auth()) return;
     recordCompletedLesson();

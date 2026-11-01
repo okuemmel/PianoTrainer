@@ -101,6 +101,7 @@ test("firmware recovery page rejects a sample package and waits for firmware upd
     d = w.document;
   let request,
     kind = "web";
+  w.fetch = async () => ({ ok: true, status: 200 });
   w.XMLHttpRequest = class {
     constructor() {
       request = this;
@@ -111,8 +112,9 @@ test("firmware recovery page rejects a sample package and waits for firmware upd
       assert.equal(path, "/api/update");
     }
     setRequestHeader(key, value) {
-      assert.equal(key, "X-Trainer");
-      assert.equal(value, "1");
+      assert.ok(["X-Trainer", "X-Session"].includes(key));
+      if (key === "X-Trainer") assert.equal(value, "1");
+      else assert.match(value, /^[a-f0-9]{32}$/);
     }
     send() {}
   };
@@ -148,4 +150,40 @@ test("firmware recovery page rejects a sample package and waits for firmware upd
   assert.equal(d.querySelector("#progress").value, 100);
   assert.equal(d.querySelector("#send").disabled, false);
   assert.match(d.querySelector("#status").textContent, /Success/);
+});
+
+test("update upload carries the session token and notifies the UI after takeover", async (t) => {
+  globalThis.trainerSessionToken = "a".repeat(32);
+  let lost = false,
+    instance;
+  globalThis.trainerSessionLost = () => {
+    lost = true;
+  };
+  t.after(() => {
+    delete globalThis.trainerSessionToken;
+    delete globalThis.trainerSessionLost;
+  });
+  const headers = {};
+  class XHR {
+    constructor() {
+      instance = this;
+      this.upload = {};
+    }
+    open() {}
+    setRequestHeader(k, v) {
+      headers[k] = v;
+    }
+    send() {}
+  }
+  const pending = upload(
+    new File(["test"], "firmware.ptupdate"),
+    () => {},
+    XHR,
+  );
+  assert.equal(headers["X-Session"], "a".repeat(32));
+  instance.status = 409;
+  instance.responseText = '{"error":"session lost","code":"session_conflict"}';
+  instance.onload();
+  await assert.rejects(pending, /session lost/);
+  assert.equal(lost, true);
 });

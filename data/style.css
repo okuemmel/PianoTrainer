@@ -51,12 +51,11 @@ header {
   letter-spacing: 2px;
   color: var(--muted);
 }
-.mark {
-  background: var(--accent);
-  color: #13251f;
-  border-radius: 10px;
-  font-size: 30px;
-  padding: 0 12px;
+.brand-logo {
+  display: block;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
 }
 .muted {
   color: var(--muted);
@@ -401,8 +400,9 @@ footer a {
   .brand {
     font-size: 12px;
   }
-  .mark {
-    font-size: 26px;
+  .brand-logo {
+    width: 36px;
+    height: 36px;
   }
   .layout {
     display: block;
@@ -601,6 +601,72 @@ input[type="checkbox"] {
 
 #scorePanel[hidden] {
   display: none;
+}
+.falling-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0;
+}
+.falling-toolbar label {
+  min-width: 110px;
+  max-width: 180px;
+  flex: 1 1 130px;
+}
+.falling-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+}
+.falling-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+.left-hand {
+  background: #58a6ff;
+}
+.right-hand {
+  background: #54e3a2;
+}
+#fallingPanel[hidden] {
+  display: none;
+}
+body.falling-focus {
+  overflow: hidden;
+}
+body.falling-focus #fallingPanel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  padding: max(8px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+body.falling-focus .falling-viewport {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.falling-viewport {
+  position: relative;
+  width: 100%;
+  height: clamp(280px, 48vh, 580px);
+}
+#fallingCanvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #0b111b;
+  border: 1px solid #29394d;
+  border-radius: 10px;
 }
 .score-viewport {
   overflow-x: auto;
@@ -827,6 +893,7 @@ textarea {
 }
 .midi-library-list li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -902,6 +969,10 @@ textarea {
   flex-shrink: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+.midi-library-list .library-file-actions {
+  max-width: 100%;
+  flex-shrink: 1;
 }
 
 #onlineSource {
@@ -1116,4 +1187,17 @@ footer {
     font-size: 9px;
     line-height: 12px;
   }
+}
+
+.session-block {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #10151ef5;
+}
+.session-block article {
+  width: min(100%, 480px);
 }

@@ -2,6 +2,44 @@
 
 Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen aus `include/AppInfo.h`; ältere Einträge wurden aus Git übernommen.
 
+## 1.15.1 · 2026-11-01
+
+- Pause-/Fortsetzen-Taste direkt in der Falling-Notes-Ansicht ergänzen, auch in der vergrößerten Ansicht. Je nach aktiver Quelle den vorhandenen MIDI-Player oder die Übung steuern; mobile Audiofreigabe beim Fortsetzen beibehalten.
+- MIDI-Player mit „10 s zurück“ zurücksetzen, laufende Töne und LED-Vorschau neu synchronisieren und den Spiel-/Pausenzustand beibehalten; Rücksprung vor Dateianfang auf null begrenzen.
+- Verifizierte Firmware-/Sample-Updatepakete, USB-Installation, Anleitung und Prüfsummen unter `dist/v1.15.1` und im GitHub-Release bereitstellen.
+
+## 1.15.0 · 2026-11-01
+
+- Umschaltbare Falling-Notes-Ansicht mit Canvas, synchroner Audio-/Übungszeit, proportionaler Klaviatur, Trefferlinie und 4-Sekunden-Vorschau ergänzen; Vorschau und Trennnote für blaue/grüne Handfarben einstellbar.
+- MIDI-Notendauern visualisieren, Pausen und Positionswechsel direkt aus dem vorhandenen Player übernehmen; im schrittweisen Lernmodus am aktuellen Einsatz warten und bestätigte Treffer kurz aufleuchten lassen.
+- Übungssequenz einmalig über eine rein lesende Abfrage laden; Animation ohne zusätzliche MIDI-/LED-Befehle und ohne Timer pro Note ausführen. Deutsche und englische Oberfläche ergänzen.
+
+## 1.14.2 · 2026-11-01
+
+- Temporäre Nextcloud-Uploads mit `.tmp` statt der von Nextcloud speziell behandelten `.part`-Endung anlegen; PUT-Fehler 412 nicht länger als vorhandene Zieldatei melden. Schutz vor Überschreiben bleibt aktiv.
+
+## 1.14.1 · 2026-11-01
+
+- Nextcloud-Speichern im seriellen Log mit getrennten PUT-/MOVE-/DELETE-Ergebnissen, HTTP- und Transportfehlern, Bytezahlen und Laufzeiten diagnostizieren; keine URLs, Zugangsdaten oder Serverantworten protokollieren.
+
+## 1.14.0 · 2026-11-01
+
+- Ausgewählte MIDIs per WebDAV in den konfigurierten Nextcloud-Ordner kopieren: blockweise Übertragung, temporäre Datei und abschließendes MOVE ohne Überschreiben vorhandener Dateien.
+
+- MIDI-Favoriten samt vollständiger Datei im Browser speichern, direkt anhören, als Übung übernehmen und entfernen; auch lokale Dateien können gespeichert werden.
+- Gespeicherte Online-/Nextcloud-MIDIs beim erneuten Öffnen aus dem lokalen Favoritenspeicher laden statt erneut herunterladen.
+- IndexedDB-Speicherung auf 32 Dateien und insgesamt 32 MiB begrenzen, Schreibvorgänge atomar ausführen und Speicherfehler verständlich melden; DE/EN ergänzen.
+
+## 1.13.1 · 2026-11-01
+
+- Eigenes Klaviertasten-/LED-Logo im App-Kopf ergänzen, mit SVG-/ICO-Favicon und iPhone-Startbildschirmsymbol; alle Symbole direkt in die Firmware einbetten.
+
+## 1.13.0 · 2026-11-01
+
+- Eine aktive Steuersitzung mit ausdrücklicher Übernahmefrage für weitere Browser einführen; alte Sitzungen serverseitig sperren und ihre lokale Wiedergabe anhalten.
+- Übung bei Besitzerwechsel pausieren, Noten und LEDs freigeben, Download abbrechen und verwaiste Sitzungen nach 30 Sekunden wieder verfügbar machen.
+- Sitzung auch bei MIDI-Downloads, Update-Uploads und der Recovery-Seite prüfen; DE-/EN-Texte ergänzen.
+
 ## 1.12.3 · 2026-11-01
 
 - Webanmeldung standardmäßig ausschalten und unter System optional aktivierbar machen; Einstellung dauerhaft speichern und für Oberfläche, API und Updates einheitlich anwenden.

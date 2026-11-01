@@ -71,8 +71,11 @@ test("German and English catalogs cover static UI, lesson text and preset titles
     "app.js",
     "midi-file.js",
     "midi-player.js",
+    "falling-notes.js",
     "piano-audio.js",
     "library.js",
+    "midi-favorites.js",
+    "nextcloud-upload.js",
     "maintenance.js",
   ]) {
     const source = fs.readFileSync("data/" + file, "utf8");

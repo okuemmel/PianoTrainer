@@ -218,14 +218,20 @@
             time: event.time - origin,
             beat: (event.tick - first.tick) / division,
             duration: null,
+            durationBeats: null,
           };
           if (!held.has(key)) held.set(key, []);
           held.get(key).push(voice);
           notes.push(voice);
         } else {
           const voice = held.get(key)?.shift();
-          if (voice)
+          if (voice) {
             voice.duration = Math.max(0.03, event.time - origin - voice.time);
+            voice.durationBeats = Math.max(
+              0.01,
+              (event.tick - first.tick) / division - voice.beat,
+            );
+          }
         }
       }
       for (const note of notes)
@@ -241,12 +247,14 @@
           0,
         ),
         bpm: Math.round(60000000 / firstTempo),
+        originBeat: first.tick / division,
       };
     }
     const groups = [...attacks.entries()].sort((a, b) => a[0] - b[0]);
     if (!groups.length)
       throw Error("Keine spielbaren Noten im gewählten Kanal gefunden.");
-    const allSteps = [];
+    const allSteps = [],
+      allBeats = [];
     for (let i = 0; i < groups.length; i++) {
       const [tick, notes] = groups[i];
       const next =
@@ -256,10 +264,12 @@
       let remaining = Math.max(60, next - tick);
       const ticks = Math.min(7680, remaining);
       allSteps.push({ notes: [...notes].sort((a, b) => a - b), ticks });
+      allBeats.push(tick / 480);
       remaining -= ticks;
       while (remaining > 0) {
         const rest = Math.min(7680, remaining);
         allSteps.push({ notes: [], ticks: rest });
+        allBeats.push((next - remaining) / 480);
         remaining -= rest;
         if (allSteps.length > 100000)
           throw Error("MIDI-Zeitachse ist zu lang.");
@@ -282,6 +292,7 @@
       );
     return {
       steps,
+      stepBeats: allBeats.slice(startStep, startStep + 128),
       totalSteps: allSteps.length,
       startStep,
       quantized,

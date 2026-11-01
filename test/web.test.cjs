@@ -8,12 +8,15 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 async function setup(
   library = { folder: "", user: "", hasPassword: false, hasCa: false },
   language = "de",
+  sessionServer = null,
+  indexedDB = undefined,
 ) {
   const dom = new JSDOM(html, {
     url: "http://192.168.4.1/",
     runScripts: "outside-only",
   });
   dom.window.TextDecoder = TextDecoder;
+  if (indexedDB) dom.window.indexedDB = indexedDB;
   const calls = [];
   let course = [
     {
@@ -106,6 +109,8 @@ async function setup(
   dom.window.fetch = async (url, options) => {
     const body = options.body ? JSON.parse(options.body) : undefined;
     calls.push({ url, options, body });
+    const sessionReply = sessionServer?.(url, options, body);
+    if (sessionReply) return sessionReply;
     let data = { ok: true };
     if (url === "/api/backup")
       data = {
@@ -242,12 +247,15 @@ async function setup(
   dom.window.eval(fs.readFileSync("data/i18n.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/midi-file.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/library.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/midi-favorites.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/nextcloud-upload.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/piano-audio.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/midi-player.js", "utf8"));
+  dom.window.eval(fs.readFileSync("data/falling-notes.js", "utf8"));
   dom.window.eval(fs.readFileSync("data/maintenance.js", "utf8"));
   dom.window.eval(
     script +
-      "\nwindow.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus; window.receivePlaybackSnapshot = renderPlayback; window.testMidiPlayer = midiPlayer;",
+      "\nwindow.testFallingSnapshot = fallingSnapshot; window.testFallingView = fallingView; window.receiveTrainingSnapshot = renderTraining; window.receiveNetworkSnapshot = renderStatus; window.receivePlaybackSnapshot = renderPlayback; window.testMidiPlayer = midiPlayer; window.testApi = api; window.testFavorites = favorites; window.testCloudUploader = cloudUploader; window.testRefreshFavorites = refreshFavorites; window.testRenderLibraryList = renderLibraryList;",
   );
   await tick();
   await tick();
@@ -642,13 +650,245 @@ test("optional browser audio uses the correct pitch and releases on key-up and b
   await tick();
   await tick();
 });
+test("Falling Notes pause controls a lesson in expanded view and disables itself after free play", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const button = s.d.querySelector("#fallingPause");
+  assert.equal(button.disabled, true);
+  s.w.location.hash = "#training";
+  await tick();
+  await tick();
+  s.d.querySelector("#trainingMode").value = "rhythm";
+  s.d
+    .querySelector("#trainingForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  const display = s.d.querySelector("#trainingDisplay");
+  display.value = "falling";
+  display.dispatchEvent(new s.w.Event("change"));
+  s.d.querySelector("#fallingFocus").click();
+  assert.equal(button.disabled, false);
+  button.click();
+  await tick();
+  await tick();
+  assert.equal(
+    s.calls.filter((c) => c.url === "/api/training").at(-1).body.command,
+    "pause",
+  );
+  assert.equal(button.textContent, "Fortsetzen");
+  assert.ok(s.d.body.classList.contains("falling-focus"));
+  button.click();
+  await tick();
+  await tick();
+  assert.equal(
+    s.calls.filter((c) => c.url === "/api/training").at(-1).body.command,
+    "resume",
+  );
+  assert.equal(button.textContent, "Pause");
+  s.d.querySelector("#trainingFree").click();
+  await tick();
+  await tick();
+  assert.equal(button.disabled, true);
+});
+test("Falling Notes pause prefers the MIDI player and unlocks mobile audio synchronously on continue", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const player = s.w.testMidiPlayer,
+    button = s.d.querySelector("#fallingPause");
+  s.w.receiveTrainingSnapshot({
+    state: "paused",
+    total: 1,
+    index: 0,
+    bpm: 80,
+    expected: [],
+    held: [],
+    upcoming: [],
+  });
+  player.context = { currentTime: 12 };
+  player.started = 10;
+  player.performance = { duration: 30, notes: [] };
+  player.state = "playing";
+  s.w.receivePlaybackSnapshot({
+    state: "playing",
+    position: 2,
+    duration: 30,
+    notes: [],
+  });
+  const before = s.calls.filter(
+    (c) => c.url === "/api/training" && c.body,
+  ).length;
+  button.click();
+  assert.equal(player.state, "paused");
+  assert.equal(player.position, 2);
+  assert.equal(button.textContent, "Fortsetzen");
+  let unlocked = false,
+    resumed = false,
+    finish;
+  player.unlock = () => {
+    unlocked = true;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  };
+  player.resume = () => {
+    resumed = true;
+  };
+  button.click();
+  assert.equal(unlocked, true);
+  assert.equal(resumed, false);
+  finish();
+  await tick();
+  await tick();
+  assert.equal(resumed, true);
+  assert.equal(
+    s.calls.filter((c) => c.url === "/api/training" && c.body).length,
+    before,
+  );
+  player.state = "stopped";
+});
+
+test("Falling Notes back button rewinds paused playback by ten seconds and clamps at the start", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const player = s.w.testMidiPlayer,
+    button = s.d.querySelector("#fallingBack");
+  assert.equal(button.disabled, true);
+  player.performance = {
+    duration: 40,
+    notes: [{ note: 60, time: 0, duration: 1 }],
+  };
+  player.state = "paused";
+  player.position = 15;
+  s.w.receivePlaybackSnapshot({
+    state: "paused",
+    position: 15,
+    duration: 40,
+    notes: [],
+  });
+  assert.equal(button.disabled, false);
+  button.click();
+  assert.equal(player.position, 5);
+  assert.equal(player.state, "paused");
+  assert.equal(s.w.testFallingSnapshot(0).position, 5);
+  button.click();
+  assert.equal(player.position, 0);
+  player.stop();
+  assert.equal(button.disabled, true);
+});
+
+test("Falling Notes follows the audio clock and paused/seek positions without MIDI or LED commands", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const player = s.w.testMidiPlayer;
+  player.performance = {
+    notes: [{ note: 60, time: 1, duration: 2 }],
+    duration: 10,
+  };
+  player.context = { currentTime: 12 };
+  player.started = 10;
+  player.state = "playing";
+  const before = s.calls.length;
+  assert.equal(s.w.testFallingSnapshot(0).position, 2);
+  player.context.currentTime = 12.125;
+  assert.equal(s.w.testFallingSnapshot(0).position, 2.125);
+  player.state = "paused";
+  player.position = 2.125;
+  player.context.currentTime = 100;
+  assert.equal(s.w.testFallingSnapshot(10000).position, 2.125);
+  player.position = 0.25;
+  assert.equal(s.w.testFallingSnapshot(10000).position, 0.25);
+  assert.equal(s.calls.length, before);
+  player.state = "stopped";
+});
+test("Falling Notes fetches a lesson once, waits for input, flashes confirmed hits and freezes paused practice", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const fetch = s.w.fetch;
+  let reads = 0;
+  s.w.fetch = async (url, options) => {
+    if (url === "/api/training/sequence") {
+      reads++;
+      return {
+        ok: true,
+        json: async () => ({
+          id: 99,
+          steps: [
+            { notes: [60], ticks: 480 },
+            { notes: [62], ticks: 480 },
+          ],
+        }),
+      };
+    }
+    return fetch(url, options);
+  };
+  const field = s.d.querySelector("#trainingDisplay");
+  field.value = "falling";
+  field.dispatchEvent(new s.w.Event("change"));
+  const state = {
+    sequenceId: 99,
+    state: "playing",
+    bpm: 60,
+    countInMs: 0,
+    elapsedMs: 500,
+    index: 0,
+    total: 2,
+    timed: false,
+    correct: 0,
+    expected: [60],
+    held: [60],
+    upcoming: [],
+  };
+  s.w.receiveTrainingSnapshot(state);
+  await tick();
+  await tick();
+  assert.equal(reads, 1);
+  assert.equal(s.w.testFallingSnapshot(0).position, 0);
+  assert.equal(s.w.testFallingSnapshot(100000).position, 0);
+  assert.ok(s.w.testFallingSnapshot(0).held.includes(60));
+  s.w.receiveTrainingSnapshot({
+    ...state,
+    index: 1,
+    correct: 1,
+    expected: [62],
+    held: [],
+  });
+  assert.equal(s.w.testFallingSnapshot(0).position, 1);
+  assert.ok(s.w.testFallingView.flashes.has(60));
+  s.w.receiveTrainingSnapshot({
+    ...state,
+    state: "paused",
+    timed: true,
+    elapsedMs: 1234,
+  });
+  assert.equal(s.w.testFallingSnapshot(0).position, 1.234);
+  assert.equal(s.w.testFallingSnapshot(100000).position, 1.234);
+  assert.equal(reads, 1);
+  assert.equal(s.d.querySelector("#fallingPanel").hidden, false);
+  s.d.querySelector("#fallingFocus").click();
+  assert.equal(s.w.testFallingSnapshot(100000).position, 1.234);
+  assert.ok(s.d.body.classList.contains("falling-focus"));
+  field.value = "standard";
+  field.dispatchEvent(new s.w.Event("change"));
+  assert.equal(s.d.querySelector("#fallingPanel").hidden, true);
+  assert.equal(s.w.testFallingView.enabled, false);
+  assert.equal(s.d.body.classList.contains("falling-focus"), false);
+});
+
 test("MIDI import transfers only the selected section with visible totals", async (t) => {
   const s = await setup();
   t.after(() => s.w.close());
   let options;
   s.w.MidiFile.parse = (buffer, opts) => {
+    if (opts.performanceOnly)
+      return {
+        notes: [{ note: 60, beat: 128, duration: 0.5, durationBeats: 1 }],
+        bpm: 100,
+        originBeat: 0,
+      };
     options = opts;
     return {
+      stepBeats: [128],
       steps: [{ notes: [60], ticks: 480 }],
       startStep: 128,
       totalSteps: 2000,
@@ -1673,4 +1913,177 @@ test("web login defaults off and saves an explicit boolean without transmitting 
   const saved = s.calls.find((c) => c.url === "/api/access");
   assert.deepEqual(JSON.parse(JSON.stringify(saved.body)), { enabled: true });
   assert.equal(saved.options.headers["X-Trainer"], "1");
+});
+
+test("two browsers require explicit takeover and a displaced browser cannot send commands or auto-reclaim", async (t) => {
+  let owner = "";
+  const coordinator = (url, options, body) => {
+    const token = options.headers?.["X-Session"];
+    const conflict = () => {
+      const result = {
+        ok: false,
+        status: 409,
+        json: async () => ({
+          code: "session_conflict",
+          error: "Sitzung in einem anderen Browser aktiv.",
+        }),
+        clone() {
+          return this;
+        },
+      };
+      return result;
+    };
+    if (url === "/api/session") {
+      if (owner && owner !== token && !body.takeover) return conflict();
+      owner = token;
+    } else if (url.startsWith("/api/") && token !== owner) return conflict();
+  };
+  const a = await setup(undefined, "de", coordinator);
+  t.after(() => a.w.close());
+  const b = await setup(undefined, "en", coordinator);
+  t.after(() => b.w.close());
+  assert.notEqual(a.w.trainerSessionToken, b.w.trainerSessionToken);
+  assert.equal(a.d.querySelector("#sessionBlock").hidden, true);
+  assert.equal(b.d.querySelector("#sessionBlock").hidden, false);
+  assert.equal(
+    b.d.querySelector("#takeSession").textContent,
+    "Take over session",
+  );
+  assert.equal(
+    b.calls.some((c) => c.url === "/api/config"),
+    false,
+  );
+  b.d.querySelector("#takeSession").click();
+  for (let i = 0; i < 8; i++) await tick();
+  assert.equal(b.d.querySelector("#sessionBlock").hidden, true);
+  assert.ok(b.calls.some((c) => c.url === "/api/config"));
+  a.w.testMidiPlayer.state = "playing";
+  await assert.rejects(a.w.testApi("status"), /Sitzung/);
+  assert.equal(a.w.testMidiPlayer.state, "stopped");
+  assert.equal(a.d.querySelector("#sessionBlock").hidden, false);
+  const sent = a.calls.length;
+  await assert.rejects(a.w.testApi("led", { command: "off" }), /Sitzung/);
+  assert.equal(a.calls.length, sent);
+  assert.equal(owner, b.w.trainerSessionToken);
+  assert.equal(a.calls.filter((c) => c.url === "/api/session").length, 1);
+});
+
+test("saved online favorites survive a new page and support import, listening and source cache reuse without downloads", async (t) => {
+  const { IDBFactory } = require("fake-indexeddb"),
+    factory = new IDBFactory();
+  const a = await setup(undefined, "de", null, factory);
+  t.after(() => a.w.close());
+  await a.w.testRefreshFavorites();
+  const bytes = Uint8Array.from([
+    77, 84, 104, 100, 0, 0, 0, 6, 0, 0, 0, 1, 1, 224, 77, 84, 114, 107, 0, 0, 0,
+    13, 0, 144, 60, 100, 131, 96, 128, 60, 0, 0, 255, 47, 0,
+  ]);
+  const result = {
+    files: [{ id: 5, name: "Song <img>.mid", notes: "Piano", rating: null }],
+    truncated: false,
+  };
+  let downloads = 0;
+  a.w.MidiLibrary.Client.prototype.run = async () => {
+    downloads++;
+    return bytes;
+  };
+  a.w.testRenderLibraryList("#searchFiles", result, "midisss");
+  a.d.querySelectorAll("#searchFiles button")[2].click();
+  for (let i = 0; i < 12; i++) await tick();
+  assert.equal((await a.w.testFavorites.list()).length, 1);
+  assert.equal(downloads, 1);
+  const b = await setup(undefined, "en", null, factory);
+  t.after(() => b.w.close());
+  await b.w.testRefreshFavorites();
+  assert.equal(b.d.querySelector("#favoriteFiles img"), null);
+  assert.match(
+    b.d.querySelector("#favoriteFiles").textContent,
+    /Song <img>.mid/,
+  );
+  Object.defineProperty(b.d, "hidden", { configurable: true, value: false });
+  b.w.location.hash = "training";
+  await tick();
+  await tick();
+  let repeatedDownloads = 0;
+  b.w.MidiLibrary.Client.prototype.run = async () => {
+    repeatedDownloads++;
+    throw Error("must not download");
+  };
+  b.d.querySelector("#favoriteFiles button").click();
+  for (let i = 0; i < 8; i++) await tick();
+  assert.match(
+    b.d.querySelector("#importResult").textContent,
+    /Song <img>.mid/,
+  );
+  let played;
+  b.w.testMidiPlayer.unlock = () => Promise.resolve();
+  b.w.testMidiPlayer.play = (performance) => {
+    played = performance;
+  };
+  b.d.querySelectorAll("#favoriteFiles button")[1].click();
+  for (let i = 0; i < 8; i++) await tick();
+  assert.equal(played.notes[0].note, 60);
+  b.w.testRenderLibraryList("#searchFiles", result, "midisss");
+  b.d.querySelector("#searchFiles button").click();
+  for (let i = 0; i < 8; i++) await tick();
+  assert.match(
+    b.d.querySelector("#importResult").textContent,
+    /Song <img>.mid/,
+  );
+  assert.equal(repeatedDownloads, 0);
+  assert.equal(
+    b.calls.some((c) => c.url.startsWith("/api/library/job")),
+    false,
+  );
+  b.w.confirm = () => true;
+  b.d.querySelectorAll("#favoriteFiles button")[2].click();
+  for (let i = 0; i < 10; i++) await tick();
+  assert.equal((await b.w.testFavorites.list()).length, 0);
+});
+
+test("selected MIDI copies to the configured Nextcloud folder and reports success after upload", async (t) => {
+  const s = await setup({
+    folder: "https://cloud.example/dav/MIDI/",
+    user: "user",
+    hasPassword: true,
+    hasCa: false,
+  });
+  t.after(() => s.w.close());
+  const bytes = Uint8Array.from([
+    77, 84, 104, 100, 0, 0, 0, 6, 0, 0, 0, 1, 1, 224, 77, 84, 114, 107, 0, 0, 0,
+    13, 0, 144, 60, 100, 131, 96, 128, 60, 0, 0, 255, 47, 0,
+  ]);
+  Object.defineProperty(s.d.querySelector("#midiFile"), "files", {
+    value: [
+      {
+        name: "local.mid",
+        size: bytes.length,
+        arrayBuffer: async () => bytes.buffer,
+      },
+    ],
+  });
+  s.w.prompt = () => "saved.mid";
+  let uploaded = false;
+  s.w.testCloudUploader.run = async (name, data, progress) => {
+    assert.equal(name, "saved.mid");
+    assert.deepEqual([...data], [...bytes]);
+    progress(99);
+    uploaded = true;
+    progress(100);
+  };
+  s.w.MidiLibrary.Client.prototype.run = async (request) => {
+    assert.equal(uploaded, true);
+    assert.equal(request.action, "list");
+    return new TextEncoder().encode(
+      '<d:multistatus xmlns:d="DAV:"></d:multistatus>',
+    );
+  };
+  s.d.querySelector("#saveNextcloud").click();
+  for (let i = 0; i < 12; i++) await tick();
+  assert.equal(uploaded, true);
+  assert.match(
+    s.d.querySelector("#libraryStatus").textContent,
+    /In Nextcloud gespeichert: saved.mid/,
+  );
+  assert.equal(s.d.querySelector("#saveNextcloud").disabled, false);
 });

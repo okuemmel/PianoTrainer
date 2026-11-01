@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "ControlSession.h"
 #include "LibrarySettings.h"
 #include "NetworkSettings.h"
 #include "TrainerLogic.h"
@@ -137,8 +138,27 @@ void library_paths() {
   TEST_ASSERT_EQUAL_STRING("My%20Song%23%C3%BC.mid", libraryUrlEncode("My Song#ü.mid").c_str());
   TEST_ASSERT_EQUAL_STRING("https://cloud:8443", libraryOrigin("https://cloud:8443/dir/").c_str());
 }
+void control_session_lease() {
+  ControlSession session;
+  const std::string a(32, 'a'), b(32, 'b');
+  TEST_ASSERT_FALSE(session.claim("bad", 1, true));
+  TEST_ASSERT_FALSE(session.renew(a, 1));
+  TEST_ASSERT_TRUE(session.claim(a, 10, false));
+  TEST_ASSERT_FALSE(session.claim(b, 20, false));
+  TEST_ASSERT_TRUE(session.renew(a, 25));
+  TEST_ASSERT_TRUE(session.claim(b, 30, true));
+  TEST_ASSERT_FALSE(session.renew(a, 31));
+  TEST_ASSERT_FALSE(session.claim(a, 32, false));
+  TEST_ASSERT_TRUE(session.claim(a, 30030, false));
+  TEST_ASSERT_FALSE(session.renew(b, 30031));
+  TEST_ASSERT_TRUE(session.claim(b, UINT32_MAX - 100, true));
+  TEST_ASSERT_TRUE(session.active(100));
+  TEST_ASSERT_FALSE(session.claim(a, 100, false));
+  TEST_ASSERT_TRUE(session.claim(a, 30100, false));
+}
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(control_session_lease);
   RUN_TEST(library_paths);
   RUN_TEST(hostname_boundaries);
   RUN_TEST(defaults_valid);

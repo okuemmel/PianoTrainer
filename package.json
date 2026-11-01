@@ -7,6 +7,7 @@
     "format:check": "prettier --check data test/*.test.cjs package.json"
   },
   "devDependencies": {
+    "fake-indexeddb": "6.0.0",
     "jsdom": "26.1.0",
     "prettier": "3.6.2"
   }

@@ -1,3 +1,7 @@
+#include <esp_system.h>
+#include <mbedtls/base64.h>
+
+#include <memory>
 #include <utility>
 
 #include "TrainerWebServer.h"
@@ -96,13 +100,27 @@ void TrainerWebServer::libraryRoutes() {
       request.ca = config.cloudCa;
       if (action == "list")
         request.dav = request.listing = true;
-      else if (action == "file" && doc["name"].is<const char*>()) {
+      else if ((action == "file" || action == "save") && doc["name"].is<const char*>()) {
         const auto name = doc["name"].as<JsonString>();
         if (!validMidiFilename(std::string_view(name.c_str(), name.size()))) {
           error(400, "Ungültiger MIDI-Dateiname.");
           return;
         }
-        request.url += libraryUrlEncode(std::string_view(name.c_str(), name.size())).c_str();
+        const String destination =
+            request.url + libraryUrlEncode(std::string_view(name.c_str(), name.size())).c_str();
+        if (action == "save") {
+          if (!doc["size"].is<uint32_t>() || doc["size"].as<uint32_t>() < 14 ||
+              doc["size"].as<uint32_t>() > 2097152) {
+            error(400, "MIDI-Datei: 14 Bytes bis 2 MiB erforderlich.");
+            return;
+          }
+          request.destination = destination;
+          request.uploadSize = doc["size"];
+          // Nextcloud treats .part objects specially; use an ordinary temporary object.
+          request.url += ".piano-trainer-upload-" + String(esp_random(), HEX) +
+                         String(esp_random(), HEX) + ".tmp";
+        } else
+          request.url = destination;
       } else {
         error(400, "Ungültige Nextcloud-Aktion.");
         return;
@@ -171,6 +189,38 @@ void TrainerWebServer::libraryRoutes() {
     StaticJsonDocument<512> doc;
     library.status(doc.to<JsonObject>());
     json(200, doc);
+  });
+  server.on("/api/library/upload", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    DynamicJsonDocument doc(8192);
+    if (!body(doc, 6000)) return;
+    if (!doc["id"].is<uint32_t>() || doc["id"].as<uint32_t>() != library.id() ||
+        !doc["offset"].is<uint32_t>() || !doc["data"].is<const char*>()) {
+      error(409, "Ungültiger Upload-Schritt.");
+      return;
+    }
+    const auto encoded = doc["data"].as<JsonString>();
+    std::unique_ptr<uint8_t[]> bytes(new (std::nothrow) uint8_t[4096]);
+    if (!bytes) {
+      error(503, "Zu wenig Speicher für den Upload.");
+      return;
+    }
+    size_t length = 0;
+    if (encoded.size() > 5464 ||
+        mbedtls_base64_decode(bytes.get(), 4096, &length,
+                              reinterpret_cast<const unsigned char*>(encoded.c_str()),
+                              encoded.size()) != 0) {
+      error(400, "Ungültiger Upload-Schritt.");
+      return;
+    }
+    const int accepted = library.uploadChunk(doc["offset"], bytes.get(), length);
+    if (accepted < 0) {
+      error(409, "Upload nicht mehr aktuell oder Dateibereich ungültig.");
+      return;
+    }
+    StaticJsonDocument<128> reply;
+    reply["accepted"] = accepted == 1;
+    json(200, reply);
   });
   server.on("/api/library/cancel", HTTP_POST, [this] {
     if (!auth(true)) return;
