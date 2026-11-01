@@ -1,6 +1,7 @@
 #include "TrainerWebServer.h"
 
 #include <LittleFS.h>
+#include <esp_ota_ops.h>
 
 #include "AppInfo.h"
 #include "EmbeddedWebAssets.h"
@@ -109,6 +110,16 @@ void TrainerWebServer::status() {
   d["uptime"] = millis() / 1000;
   d["heap"] = ESP.getFreeHeap();
   d["flash"] = ESP.getFlashChipSize();
+  d["psram"] = ESP.getPsramSize();
+  d["freePsram"] = ESP.getFreePsram();
+  auto update = d.createNestedObject("update");
+  update["target"] = BoardProfile::target;
+  update["layout"] = BoardProfile::layout;
+  const auto* slot = esp_ota_get_next_update_partition(nullptr);
+  const auto* fs = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
+                                            ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "littlefs");
+  update["firmwareMax"] = slot ? slot->size : 0;
+  update["filesystemSize"] = fs ? fs->size : 0;
   d["mode"] = leds.mode;
   d["filesystem"] = fsReady;
   d["firmware"] = AppInfo::Version;

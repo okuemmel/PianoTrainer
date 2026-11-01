@@ -1,4 +1,6 @@
-# MIDI LED Piano Trainer · ESP32-C3 SuperMini
+# MIDI LED Piano Trainer · ESP32-S3 / v2-Entwicklung
+
+**Entwicklungsstand: 2.0.0-alpha.1.** Der S3-Softwareport liegt auf einem Feature-Branch für `develop/v2`; das Zielboard WROOM-1-N16R8 ist noch im Zulauf. Build-/Hosttests ersetzen keine S3-Abnahme. [S3-Build, Installation und Datenumzug](docs/V2_S3_PORT.md) · [Feature-Parität](docs/V2_FEATURE_PARITY.md). Die stabile C3-Version bleibt unverändert unter [v1.15.1](https://github.com/okuemmel/PianoTrainer/releases/tag/v1.15.1) verfügbar. Die folgenden v1-Anwendungsbeschreibungen bleiben als Referenz erhalten; S3-spezifische Größen und Befehle stehen im verlinkten Portierungsbericht.
 
 Dieses Projekt ist **vibe coded**: Es entsteht im Dialog mit einem KI-Coding-Agenten, der große Teile des Codes und der Tests erzeugt. Die dokumentierten Prüfungen zeigen, was tatsächlich getestet wurde; sie ersetzen keine vollständige Erprobung am Instrument.
 
@@ -224,7 +226,7 @@ test/midi-file.test.cjs    Tests des lokalen MIDI-Importers
 
 Der synchrone Arduino-Webserver verarbeitet kurze HTTP-Befehle; Animationen, DNS und WLAN-Zustände werden kooperativ im Hauptloop bedient. Ein einzelnes NeoPixel-`show()` benötigt physikalisch etwa 30 µs pro LED (bei maximal 300 LEDs ca. 9 ms), ohne lange Animationsschleifen. Langsame/gestörte HTTP-Clients können den synchronen Server dennoch zeitweise aufhalten.
 
-Für den ESP32-S3 später ein eigenes Boardprofil und PlatformIO-Environment anlegen, Pins und Partitionierung anpassen und einen USB-Host-Eingang als `MidiInput` ergänzen. `MidiEvent` läuft über `TrainingController` in dieselbe Auswertung und LED-Darstellung. C3 hat keinen entsprechenden USB-Host-OTG. Echtes USB-MIDI und allgemeine Akkordnamenerkennung sind weiterhin nicht implementiert.
+Das S3-Environment `s3_n16r8`, Boardprofil und 16-MiB-Partitionen sind im v2-Entwicklungsbranch vorhanden. Ein USB-Host-Eingang als `MidiInput` folgt in Phase 2; vorgesehen ist der OTraki-DIN/USB-Adapter. `MidiEvent` läuft über `TrainingController` in dieselbe Auswertung und LED-Darstellung. C3 hat keinen entsprechenden USB-Host-OTG. Echtes USB-MIDI und allgemeine Akkordnamenerkennung sind weiterhin nicht implementiert.
 
 ## Training mit simuliertem MIDI (Firmware 1.1)
 

@@ -780,7 +780,21 @@
     "Ansicht vergrößern": "Expand view",
     "Ansicht verkleinern": "Shrink view",
     "10 Sekunden zurück · MIDI-Player": "Back 10 seconds · MIDI player",
-    "10 s zurück": "Back 10 s"
+    "10 s zurück": "Back 10 s",
+    "PSRAM": "PSRAM",
+    "Freies PSRAM": "Free PSRAM",
+    "Der LED-Pin im Backup ist auf diesem Board gesperrt. Bitte einen passenden GPIO wählen:": "The LED pin in the backup is reserved on this board. Please choose a suitable GPIO:",
+    "Ungültiger LED-Pin.": "Invalid LED pin.",
+    "Browser-Favoriten & Ansicht sichern": "Back up browser favorites & view",
+    "Browser-Backup (.ptbrowser)": "Browser backup (.ptbrowser)",
+    "Browser-Backup importieren": "Import browser backup",
+    "Favoriten und Ansicht gehören zu diesem Browser und dieser Adresse. Gleiche Favoriten werden ersetzt, andere bleiben erhalten. Geräte-Backup und Passwörter sind separat.": "Favorites and view settings belong to this browser and address. Matching favorites are replaced; others are kept. Device backups and passwords are separate.",
+    "Ungültiges Browser-Backup.": "Invalid browser backup.",
+    "Browser-Favoriten importieren und Ansicht übernehmen? Gleiche Favoriten werden ersetzt.": "Import browser favorites and view settings? Matching favorites will be replaced.",
+    "Browser-Backup importiert. Seite neu laden, um die Ansicht zu übernehmen.": "Browser backup imported. Reload the page to apply view settings.",
+    "ESP32-S3 DevC-1 N16R8": "ESP32-S3 DevC-1 N16R8",
+    "Favoriten importiert. Ansicht konnte nicht gespeichert werden; Browser-Speicher prüfen.": "Favorites imported. View settings could not be saved; check browser storage.",
+    "Bei einem Gerätewechsel WLAN, Nextcloud-App-Passwort und Webschutz auf dem neuen Gerät neu einrichten. Vor dem Anschließen den LED-GPIO prüfen.": "When moving to another device, set up Wi-Fi, the Nextcloud app password and web access protection again. Check the LED GPIO before connecting it."
   },
   "prefixes": [
     {

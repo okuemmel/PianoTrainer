@@ -62,3 +62,58 @@ test("favorites enforce the total byte budget without losing previously committe
   assert.equal((await store.list()).length, 16);
   assert.equal((await store.get("0")).bytes.byteLength, 2097152);
 });
+test("browser backup migrates exact MIDI bytes, metadata and view preferences across origins", async () => {
+  const factory = new IDBFactory(),
+    a = new Store(factory, "old-origin"),
+    b = new Store(factory, "new-origin");
+  await a.save("source:1", "Übung.mid", midi());
+  await b.save("local:keep", "keep.mid", midi(27));
+  await b.save("source:1", "old.mid", midi(28));
+  const prefs = {
+    language: "en",
+    trainingDisplay: "falling",
+    showScore: "true",
+  };
+  const blob = await a.exportArchive(prefs),
+    bytes = await blob.arrayBuffer();
+  assert.deepEqual(await b.importArchive(bytes), prefs);
+  assert.deepEqual(await b.get("source:1"), await a.get("source:1"));
+  assert.equal((await b.list()).length, 2);
+  assert.equal(
+    (await b.list()).find((item) => item.id === "source:1").savedAt,
+    (await a.list())[0].savedAt,
+  );
+  assert.ok(
+    bytes.byteLength < midi().byteLength + 1024,
+    "binary payload has no base64 expansion",
+  );
+  const exported = new Uint8Array(bytes),
+    corrupt = exported.slice();
+  corrupt[corrupt.length - 1] ^= 1;
+  const previous = await b.list();
+  for (const invalid of [
+    corrupt.buffer,
+    bytes.slice(0, bytes.byteLength - 1),
+    new Uint8Array([...exported, 0]).buffer,
+  ])
+    await assert.rejects(b.importArchive(invalid), /Ungültiges/);
+  assert.deepEqual(await b.list(), previous);
+  await assert.rejects(a.exportArchive({ auth: "admin" }), /Ungültiges/);
+  await assert.rejects(
+    a.exportArchive({ trainingDisplay: "bad" }),
+    /Ungültiges/,
+  );
+});
+test("browser backup import rolls back on limits and does not remove existing favorites", async () => {
+  const factory = new IDBFactory(),
+    a = new Store(factory, "source"),
+    b = new Store(factory, "full");
+  await a.save("incoming", "new.mid", midi());
+  for (let i = 0; i < 32; i++) await b.save(String(i), "existing.mid", midi());
+  const bytes = await (
+    await a.exportArchive({ trainingDisplay: "standard" })
+  ).arrayBuffer();
+  await assert.rejects(b.importArchive(bytes), /voll/);
+  assert.equal((await b.list()).length, 32);
+  assert.equal(await b.get("incoming"), null);
+});

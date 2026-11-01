@@ -1,0 +1,4 @@
+ef19dbdb6de608f0c63b79ea0e268d090c68d970fa4ffad1b4d6b8b6fd434576  firmware.ptupdate
+f8574263313e364f875bacd252a36da15e91d1dc511b69995bc07d9211eff152  littlefs.ptupdate
+a5b6e77ac14872646badf4e55f552f200ccaf483ab2d7a5f684daee02a644bd4  INSTALLATION.md
+b40272eb186dcebd796ac3d340d50e9bdf8893997363eddde693251123a8b8ad  piano-trainer-s3-n16r8-2.0.0-alpha.1-usb.zip

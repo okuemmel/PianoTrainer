@@ -780,6 +780,20 @@
     "Ansicht vergrößern": "Ansicht vergrößern",
     "Ansicht verkleinern": "Ansicht verkleinern",
     "10 Sekunden zurück · MIDI-Player": "10 Sekunden zurück · MIDI-Player",
-    "10 s zurück": "10 s zurück"
+    "10 s zurück": "10 s zurück",
+    "PSRAM": "PSRAM",
+    "Freies PSRAM": "Freies PSRAM",
+    "Der LED-Pin im Backup ist auf diesem Board gesperrt. Bitte einen passenden GPIO wählen:": "Der LED-Pin im Backup ist auf diesem Board gesperrt. Bitte einen passenden GPIO wählen:",
+    "Ungültiger LED-Pin.": "Ungültiger LED-Pin.",
+    "Browser-Favoriten & Ansicht sichern": "Browser-Favoriten & Ansicht sichern",
+    "Browser-Backup (.ptbrowser)": "Browser-Backup (.ptbrowser)",
+    "Browser-Backup importieren": "Browser-Backup importieren",
+    "Favoriten und Ansicht gehören zu diesem Browser und dieser Adresse. Gleiche Favoriten werden ersetzt, andere bleiben erhalten. Geräte-Backup und Passwörter sind separat.": "Favoriten und Ansicht gehören zu diesem Browser und dieser Adresse. Gleiche Favoriten werden ersetzt, andere bleiben erhalten. Geräte-Backup und Passwörter sind separat.",
+    "Ungültiges Browser-Backup.": "Ungültiges Browser-Backup.",
+    "Browser-Favoriten importieren und Ansicht übernehmen? Gleiche Favoriten werden ersetzt.": "Browser-Favoriten importieren und Ansicht übernehmen? Gleiche Favoriten werden ersetzt.",
+    "Browser-Backup importiert. Seite neu laden, um die Ansicht zu übernehmen.": "Browser-Backup importiert. Seite neu laden, um die Ansicht zu übernehmen.",
+    "ESP32-S3 DevC-1 N16R8": "ESP32-S3 DevC-1 N16R8",
+    "Favoriten importiert. Ansicht konnte nicht gespeichert werden; Browser-Speicher prüfen.": "Favoriten importiert. Ansicht konnte nicht gespeichert werden; Browser-Speicher prüfen.",
+    "Bei einem Gerätewechsel WLAN, Nextcloud-App-Passwort und Webschutz auf dem neuen Gerät neu einrichten. Vor dem Anschließen den LED-GPIO prüfen.": "Bei einem Gerätewechsel WLAN, Nextcloud-App-Passwort und Webschutz auf dem neuen Gerät neu einrichten. Vor dem Anschließen den LED-GPIO prüfen."
   }
 }

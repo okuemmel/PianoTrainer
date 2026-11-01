@@ -67,7 +67,7 @@
         ><a href="#midi">MIDI-Konfiguration</a
         ><a href="#system">Systeminformationen</a>
         <div class="nav-foot">
-          ESP32-C3 SuperMini<br /><span class="muted"
+          <span id="appBoard">ESP32-C3 SuperMini</span><br /><span class="muted"
             >Lokal. Direkt. Ohne Cloud.</span
           >
         </div>
@@ -982,11 +982,38 @@
               bleiben auf dem Gerät. Bei einem anderen Nextcloud-Konto das
               App-Passwort neu eingeben.
             </p>
+            <p class="hint">
+              Bei einem Gerätewechsel WLAN, Nextcloud-App-Passwort und Webschutz
+              auf dem neuen Gerät neu einrichten. Vor dem Anschließen den
+              LED-GPIO prüfen.
+            </p>
             <div class="actions">
               <button id="downloadBackup" type="button" class="secondary">
                 Backup herunterladen
               </button>
+              <button
+                id="downloadBrowserBackup"
+                type="button"
+                class="secondary"
+              >
+                Browser-Favoriten &amp; Ansicht sichern
+              </button>
             </div>
+            <form id="browserRestoreForm">
+              <label
+                >Browser-Backup (.ptbrowser)<input
+                  id="browserBackupFile"
+                  type="file"
+                  accept=".ptbrowser"
+                  required
+              /></label>
+              <button>Browser-Backup importieren</button>
+              <p class="hint">
+                Favoriten und Ansicht gehören zu diesem Browser und dieser
+                Adresse. Gleiche Favoriten werden ersetzt, andere bleiben
+                erhalten. Geräte-Backup und Passwörter sind separat.
+              </p>
+            </form>
             <form id="restoreForm">
               <label
                 >Backup-Datei (.json)<input

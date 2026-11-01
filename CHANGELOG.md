@@ -2,6 +2,13 @@
 
 Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen aus `include/AppInfo.h`; ältere Einträge wurden aus Git übernommen.
 
+## 2.0.0-alpha.1 · 2026-11-01
+
+- Nach Freigabe Phase 1 beginnen: eigenes S3-N16R8-Profil mit QSPI-Flash/OPI-PSRAM, 16-MiB-Partitionstabelle, zwei 4-MiB-OTA-Plätzen, S3-BOOT-Pin und konservativer LED-Pinauswahl. Bestehende Lern-, LED-, MIDI-, Audio-, Import- und Oberflächenfunktionen beibehalten; C3-Regressionsprofil erhalten.
+- Updatepakete an Chip und Flash-Layout binden, Bootloader/Partitionstabelle im Paketbau prüfen und S3-/C3-Pakete gegenseitig ablehnen. Gerät meldet tatsächliche Updategrenzen und PSRAM; alte C3-Pakete bleiben dort verwendbar.
+- Schema-1-Backups vor Wiederherstellung ohne NVS-Änderung prüfen; gesperrte GPIOs erfordern bewusste Neuauswahl. Separaten binären Browserexport/-import für vollständige MIDI-Favoriten und Ansichtseinstellungen mit Prüfsummen und atomarem Favoritenimport ergänzen, DE/EN erhalten.
+- Entwicklungsartefakte für S3 und C3-Datenexporthilfe getrennt bereitstellen. Board ist noch im Zulauf; Anbieterangabe WROOM-1-N16R8 und geplanter OTraki-USB-MIDI-Adapter dokumentiert. Keine Hardwareabnahme, kein Upload, kein finales v2-Release; USB-MIDI-Host bleibt Phase 2.
+
 ## v2-Planung auf Basis 1.15.1 · 2026-11-01
 
 - Ausschließlich Phase 0 auf `develop/v2`: v1.15.1-Referenzcommit, vollständige Feature-/API-/Dateninventare, Architektur- und MIDI-Integrationsentwurf, S3-Hardwarefragen für das genannte DevC-N16R8-Board sowie Migrations- und Regressionstestplan dokumentieren.

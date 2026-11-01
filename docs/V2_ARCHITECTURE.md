@@ -1,8 +1,8 @@
 # PianoTrainer v2 – Architektur und Bestandsaufnahme
 
-Stand: 1. November 2026. **Phase 0 abgeschlossen zu dokumentieren; alle Zielarchitekturen hier sind Vorschläge, keine implementierte S3-Firmware.**
+Stand: 1. November 2026. **Phase-0-Referenzinventar und Zielarchitektur. Phase 1 ist freigegeben; der minimale Softwareport ist in [V2_S3_PORT.md](V2_S3_PORT.md) dokumentiert. Die Entwürfe für Phasen 2–4 sind weiterhin nicht implementiert.**
 
-Verbindliche Referenz: **v1.15.1**, `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Arbeitsbranch: `develop/v2`. [Feature-Matrix](V2_FEATURE_PARITY.md), [Migration/Meilensteine](V2_MIGRATION_PLAN.md), [Testplan](V2_TEST_PLAN.md). Der Masterauftrag erlaubt nach dieser Bestandsaufnahme erst mit gesonderter Freigabe Phase 1.
+Verbindliche Referenz: **v1.15.1**, `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Arbeitsbranch: `develop/v2`. [Feature-Matrix](V2_FEATURE_PARITY.md), [Migration/Meilensteine](V2_MIGRATION_PLAN.md), [Testplan](V2_TEST_PLAN.md). Die gesonderte Freigabe für Phase 1 liegt mit „dnn los“ vor; der Entwicklungsstand ist `2.0.0-alpha.1`.
 
 ## 1. Repository und tatsächlicher Istzustand
 
@@ -71,7 +71,7 @@ flowchart TD
 
 ## 3. Zielboard – belegt, angegeben und noch offen
 
-Nutzerangabe vom 1. November 2026: **„ESP32-S3 DevC-1-N16R8-S3“**. Diese Bezeichnung wird nicht stillschweigend durch ein anderes Board ersetzt.
+Nutzerangabe vom 1. November 2026: **„ESP32-S3 DevC-1-N16R8-S3“**. Diese Bezeichnung wird nicht stillschweigend durch ein anderes Board ersetzt. Die nachgereichte Anbieterbeschreibung zu [Amazon B0GVJ5WMR1](https://www.amazon.de/dp/B0GVJ5WMR1) nennt **ESP32-S3-WROOM-1-N16R8 und zwei USB-C-Buchsen**. Das Board ist noch im Zulauf; diese Angaben sind keine eigene Sichtprüfung. Der Link war im Recherchewerkzeug nicht abrufbar. Für den MIDI-Anschluss ist ein **OTraki 5-poliger IN/OUT-USB-MIDI-Konverter** vorgesehen: USB-Host → Adapter → DIN-Keyboard. Exaktes Modell, USB-Deskriptoren, Class-Compliance, Strombedarf und Isolierung sind nicht nachgewiesen. Ein separater DIN-UART-Eingang ist damit nicht automatisch getestet.
 
 | Merkmal | Phase-0-Ergebnis | Nachweis / nächster Schritt |
 |---|---|---|

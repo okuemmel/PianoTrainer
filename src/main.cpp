@@ -12,11 +12,13 @@ bool ready = false;
 uint32_t heldAt = 0;
 void setup() {
   Serial.begin(115200);
-  pinMode(9, INPUT_PULLUP);
+  pinMode(BoardProfile::bootPin, INPUT_PULLUP);
   // Bounded USB enumeration wait; standalone startup also works.
   uint32_t start = millis();
   while (!Serial && millis() - start < 1500) delay(10);
-  Serial.println("\nMIDI LED Piano Trainer / ESP32-C3 SuperMini");
+  Serial.printf("\nMIDI LED Piano Trainer / %s\n", BoardProfile::name);
+  Serial.printf("[HW] Flash: %u, PSRAM: %u, freier Heap: %u\n", ESP.getFlashChipSize(),
+                ESP.getPsramSize(), ESP.getFreeHeap());
   if (!config.begin()) {
     Serial.println("NVS-Fehler. Neustart erforderlich.");
     return;
@@ -60,7 +62,7 @@ void loop() {
     }
   }
   // Hold BOOT during normal operation, not during reset, for physical recovery.
-  if (digitalRead(9) == LOW) {
+  if (digitalRead(BoardProfile::bootPin) == LOW) {
     if (!heldAt) heldAt = millis();
     if (millis() - heldAt > 8000) {
       leds.off();
