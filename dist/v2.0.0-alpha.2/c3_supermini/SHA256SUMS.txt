@@ -1,0 +1,4 @@
+e79a6234a086191559167c603a4805b88e95cd8ddfabb4b3000cda4b44dfc054  firmware.ptupdate
+700adde5c7bcbb24925592524b237676de71e3b8a41f8df2dc2db882646e26ec  littlefs.ptupdate
+2790d7ede17f9669da1b9f5bdbf74132961f926e64edac352e22a6fe86c4156a  INSTALLATION.md
+54a4993c17b96b554e1a05ea8ce2aea803693f5e21f2e7b3d207aa0573d6fe3d  piano-trainer-c3-supermini-2.0.0-alpha.2-usb.zip

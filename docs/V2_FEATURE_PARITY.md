@@ -1,10 +1,14 @@
 # PianoTrainer v2 – verbindliche Funktionsreferenz
 
-Stand: 1. November 2026. **Phase 1: Softwareport 2.0.0-alpha.1; S3-Hardwareabnahme offen.**
+Stand: 1. November 2026. **Phase 1 portiert, Phase 2 vorbereitet (2.0.0-alpha.2); S3-Hardwareabnahme offen.**
 
 Referenz: Release/Tag [`v1.15.1`](https://github.com/okuemmel/PianoTrainer/releases/tag/v1.15.1), Commit **`6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`**. Remote-Tag, `main` und Ausgangspunkt von `develop/v2` wurden auf denselben Commit geprüft. Der Tag und seine C3-Downloads bleiben unverändert. `include/AppInfo.h` bleibt in Phase 0 bei 1.15.1.
 
 Der Quellcode bestimmt die Referenz. `TODO.md` enthält ältere, teils inzwischen überholte Prüfstände; für neuere Hardwarebelege zusätzlich `TESTING.md` und den Release-Commit verwenden. Ein Build oder ein vorhandener Test ersetzt keine manuelle S3-Prüfung.
+
+## Phase-2-Vorbereitung
+
+Freigegeben mit „dannlos“. Gemeinsame Ereignisse/Quellenledger, DIN-Parser/optionaler S3-UART-Eingang, USB-MIDI-1.0-Protokollparser, isolierter USB-Enumerationsbuild und DE/EN-Diagnose sind in [V2_MIDI_PREPARATION.md](V2_MIDI_PREPARATION.md) beschrieben. Additiv: POST `/api/midi/input` und Statusobjekte `midi`/`usbProbe`. Kein USB-Notenempfang, keine erledigte Hotplug-/Latenz- oder Hardwareabnahme. Alle v1-F-IDs bleiben hinsichtlich realem S3-Betrieb offen.
 
 ## Phase-1-Nachweis
 
@@ -84,7 +88,7 @@ Freigegeben durch „dnn los“. Branch `feature/v2-s3-port`, Ziel N16R8. Die So
 
 | Anforderung | Tatsächlicher Befund / Ort | API / Daten heute | Geplanter Schritt | Test | Status |
 |---|---|---|---|---|---|
-| N01 DIN-MIDI / USB-MIDI-Host | Nur `SimulatedMidiInput`; kein Hardwareparser, keine UART- oder USB-Host-Abhängigkeit | kein Quell-/Zeitstempelfeld in `MidiEvent` | Phase 2, gemeinsamer Adapter/Queue | U01–U04, H01–H03 im Testplan | N/U |
+| N01 DIN-MIDI / USB-MIDI-Host | v1: nur Simulation. Jetzt gemeinsame Ereignisse/Router, MIDI-Byteparser und optionaler S3-DIN-UART; USB-Paket-/Deskriptorparser und separater Enumerationsprobe-Build | POST `/api/midi/input`, additive Diagnose; Quelle/Typ/Zeitstempel im Ereignis | USB-Bulk-Empfang/Generationen/Queue/Fehlerbereinigung und reale Hardwareprüfung folgen | native MIDI-/W-Tests; U01–U04 teilweise, H01–H03 offen | vorbereitet / nicht HW-abgenommen |
 | N02 Gemeinsame musikalische Uhr | AudioContext-Player im Browser; Engine auf ESP32-`millis`; HTTP-LED-Spiegel, keine Transportreplikation | keine Clock-Epoch, keine Sync-Timestamps | Phase 4, ADR/Zeitprotokoll in Architektur | U05, H05 | N/U |
 | N03 Spur-/Handtraining, Begleitspuren | Spurereignisse zu Tonliste verschmolzen; keine auswählbaren Begleit-/Übungsspuren, Splitfarbe ist Pitch-Heuristik | Voiceobjekte tragen keine dauerhafte Track-/Channel-ID | Phase 4, Parser-Metadaten additiv behalten | U06, M05/H05 | N/U |
 | N04 Wiedergabetempo-Faktor | Übungs-BPM veränderbar, Dateiwiedergabe folgt Tempo-Map; kein globaler Dateiplayer-Rate-Regler | keine Rate-Eigenschaft | Phase 4, gemeinsame Transportsteuerung | U05/H05 | N/U |

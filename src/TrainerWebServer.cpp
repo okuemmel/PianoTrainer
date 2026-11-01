@@ -5,6 +5,7 @@
 
 #include "AppInfo.h"
 #include "EmbeddedWebAssets.h"
+#include "UsbHostProbe.h"
 bool TrainerWebServer::auth(bool mutation) {
   server.sendHeader("Cache-Control", "no-store");
   server.sendHeader("X-Content-Type-Options", "nosniff");
@@ -90,6 +91,8 @@ void TrainerWebServer::status() {
   DynamicJsonDocument d(8192);
   trainingSnapshot(d.createNestedObject("training"));
   ledStatus(d.createNestedObject("leds"));
+  midi.status(d.createNestedObject("midi"));
+  usbHostProbeStatus(d.createNestedObject("usbProbe"));
   d["board"] = BoardProfile::name;
   d["wifiState"] = wifi.state;
   d["connected"] = WiFi.status() == WL_CONNECTED;
@@ -289,6 +292,10 @@ void TrainerWebServer::begin(bool filesystemReady) {
       error(400, e);
       return;
     }
+    if (next.pin == midi.rxPin) {
+      error(409, "GPIO wird vom MIDI-Eingang verwendet.");
+      return;
+    }
     auto old = config.led;
     midi.release();
     training.stop();
@@ -343,15 +350,43 @@ void TrainerWebServer::begin(bool filesystemReady) {
     Serial.printf("[HTTP] LED-Befehl %s angenommen, Modus %s.\n", cmd.c_str(), leds.mode.c_str());
     ledReply();
   });
+  server.on("/api/midi/input", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    StaticJsonDocument<256> doc;
+    if (!body(doc, 256)) return;
+    if (library.busy() || updateStarted || rebootAt || wifi.connecting) {
+      error(409, "Gerät ist beschäftigt. Bitte später erneut versuchen.");
+      return;
+    }
+    const String source = doc["source"] | "";
+    if ((source != "web" && source != "din") || (source == "din" && !doc["rxPin"].is<int>())) {
+      error(400, "MIDI-Eingang oder RX-Pin ungültig.");
+      return;
+    }
+    String message;
+    if (!midi.configure(source == "din" ? MidiSource::Din : MidiSource::Web, doc["rxPin"] | -1,
+                        message)) {
+      error(400, message);
+      return;
+    }
+    StaticJsonDocument<1024> result;
+    result["ok"] = true;
+    midi.status(result.createNestedObject("midi"));
+    json(200, result);
+  });
   server.on("/api/midi", HTTP_POST, [this] {
     if (!auth(true)) return;
     StaticJsonDocument<256> d;
     if (!body(d)) return;
     if (d["release"] == true)
-      midi.release();
+      midi.releaseWeb();
     else if (d["heartbeat"] == true)
       midi.keepAlive();
     else {
+      if (midi.selected != MidiSource::Web) {
+        error(409, "Virtuelle Tastatur ist als Eingang nicht ausgewählt.");
+        return;
+      }
       if (!d["note"].is<int>() || !d["velocity"].is<int>() || !d["channel"].is<int>() ||
           !d["on"].is<bool>()) {
         error(400, "MIDI-Felder fehlen.");

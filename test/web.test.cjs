@@ -1972,6 +1972,104 @@ test("S3 UI uses live update capabilities and previews migrated GPIO selection b
   );
 });
 
+test("MIDI diagnostics select a temporary S3 DIN input without changing the LED or backup profile", async (t) => {
+  const device = {
+    midi: {
+      source: "web",
+      rxPin: -1,
+      dinSupported: true,
+      usbSupported: false,
+      events: 20,
+      filtered: 2,
+      held: 1,
+      dinBytes: 60,
+      parserErrors: 0,
+      overruns: 0,
+      senseTimeouts: 0,
+      lastNote: 60,
+      lastChannel: 2,
+      lastVelocity: 90,
+      lastAgeMs: 100,
+      activityAgeMs: 100,
+    },
+    usbProbe: {
+      available: true,
+      state: "midi1-candidate",
+      vid: 0x1234,
+      pid: 0x5678,
+    },
+  };
+  const s = await setup(
+    undefined,
+    "en",
+    (url, options, body) => {
+      if (url !== "/api/midi/input") return;
+      device.midi.source = body.source;
+      device.midi.rxPin = body.rxPin ?? -1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, midi: device.midi }),
+      };
+    },
+    undefined,
+    device,
+  );
+  t.after(() => s.w.close());
+  const source = s.d.querySelector("#midiSource"),
+    rx = s.d.querySelector("#midiRxPin");
+  assert.equal(source.querySelector('[value="din"]').disabled, false);
+  assert.equal(source.querySelector('[value="usb"]').disabled, true);
+  assert.ok(![...rx.options].some((option) => option.value === "4"));
+  assert.match(
+    s.d.querySelector("#midiDiagnostics").textContent,
+    /MIDI 1 interface detected \(diagnostics only\)/,
+  );
+  assert.match(s.d.querySelector("#midiDiagnostics").textContent, /1234:5678/);
+  source.value = "din";
+  source.dispatchEvent(new s.w.Event("change", { bubbles: true }));
+  rx.value = "5";
+  rx.dispatchEvent(new s.w.Event("change", { bubbles: true }));
+  s.w.receiveNetworkSnapshot(await s.w.testApi("status"));
+  assert.equal(
+    source.value,
+    "din",
+    "polling must preserve unsaved input choices",
+  );
+  assert.equal(rx.value, "5");
+  s.calls.length = 0;
+  s.d
+    .querySelector("#midiInputForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  for (let i = 0; i < 8; i++) await tick();
+  const input = s.calls.find((call) => call.url === "/api/midi/input");
+  assert.deepEqual(input.body, { source: "din", rxPin: 5 });
+  assert.equal(input.options.headers["X-Trainer"], "1");
+  assert.ok(input.options.headers["X-Session"]);
+  assert.equal(s.calls.filter((call) => call.url === "/api/config").length, 0);
+  assert.equal(rx.disabled, false);
+  assert.match(
+    s.d.querySelector("#midiInputStatus").textContent,
+    /Selection lasts until restart/,
+  );
+  await s.w.I18n.setLanguage("de");
+  assert.match(
+    s.d.querySelector("#midiDiagnostics").textContent,
+    /MIDI-1-Schnittstelle erkannt/,
+  );
+});
+test("legacy C3 status keeps hardware input controls disabled while retaining virtual MIDI", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  assert.equal(s.d.querySelector("#applyMidiInput").disabled, true);
+  assert.equal(s.d.querySelector('#midiSource [value="din"]').disabled, true);
+  assert.equal(s.d.querySelector('#midiSource [value="usb"]').disabled, true);
+  pointer(s.w, s.d.querySelector(".key"), "pointerdown", 1);
+  await tick();
+  await tick();
+  assert.ok(s.calls.some((call) => call.url === "/api/midi" && call.body?.on));
+});
+
 test("MIDI continue unlocks audio inside the button gesture before resuming playback", async (t) => {
   const s = await setup();
   t.after(() => s.w.close());

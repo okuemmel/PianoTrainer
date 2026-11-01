@@ -1,6 +1,29 @@
 # PianoTrainer v2 – Prüfplan und Nachweisführung
 
-Stand: 1. November 2026. **Phase 1: Softwareport getestet, Hardwareabnahme offen.** Referenz: Tag v1.15.1, Commit `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Alle F-/N-IDs beziehen sich auf [V2_FEATURE_PARITY.md](V2_FEATURE_PARITY.md), Phasengates auf [V2_MIGRATION_PLAN.md](V2_MIGRATION_PLAN.md).
+Stand: 1. November 2026. **Phase 1 portiert, Phase 2 vorgezogen vorbereitet; Hardwareabnahme offen.** Referenz: Tag v1.15.1, Commit `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Alle F-/N-IDs beziehen sich auf [V2_FEATURE_PARITY.md](V2_FEATURE_PARITY.md), Phasengates auf [V2_MIGRATION_PLAN.md](V2_MIGRATION_PLAN.md).
+
+## Phase-2-Vorbereitung · 2.0.0-alpha.2
+
+Freigegeben durch „dannlos“, 1. November 2026. [Details und Hardwaregrenzen](V2_MIDI_PREPARATION.md). Keine Uploads oder physischen UART-/USB-/LED-Tests; Board im Zulauf. Der USB-Probelauf ist ausschließlich Enumeration, noch kein USB-Notenempfang.
+
+| Prüfung | Tatsächlicher Nachweis | Grenze |
+|---|---|---|
+| Node | **91/91 bestanden** | bestehende 89 plus MIDI-Auswahl/Diagnose/Sprachwechsel/Polling ohne Formularverlust und C3-Fallback; jsdom/API-Doubles |
+| Native | **68/68 bestanden** (34 je Profil) | bestehende 21 plus 13 MIDI-Tests je Profil: Parser/Realtime/Running Status/Velocity 0, Reset/Fehler, Quellen/Kanäle/Panic/Filter, 10 freie Noten, 10.000 Anschlagpaare, USB-Pakete/SysEx/Deskriptoren und Router → echte bestehende TrainingEngine |
+| Python | **7/7 bestanden** | bestehende 6 plus ausdrücklicher Ausschluss des USB-Probe-Builds von OTA-Pakethooks |
+| Firmware S3 | erfolgreich, **63.492 B** statischer RAM / **1.291.577 B** Linker-Flash | zusätzliche feste 6-KiB-Quellenverwaltung; keine gemessenen Laufzeit-/PSRAMwerte |
+| Firmware C3 | erfolgreich, **57.612 B** statischer RAM / **1.311.554 B** Linker-Flash | Regression, UART-/USB-Hardwareeingänge auf C3 nicht angeboten |
+| Firmware USB-Probe | erfolgreich, **63.796 B** statischer RAM / **1.334.385 B** Linker-Flash | SDK-Hostbibliothek/Client-/Deskriptor-APIs erfolgreich gelinkt; keine echte Enumeration |
+| Format | Prettier und clang-format bestanden | geänderte Web-/C++-Quellen |
+
+**U01–U03 sind nur im beschriebenen portablen Umfang geprüft.** UART-Fehlerqueue/Active-Sensing-Wächter auf Gerät, elektrischer Eingang, physischer Disconnect ohne FE und USB-Hotplug/Transfers bleiben offen. U04 (Queue/Ownership mit echtem USB-Empfang), U08 (Latenz) und alle H-Fälle bleiben offen. Ohne Active Sensing kann ein klassischer DIN-Eingang den abgezogenen Stecker nicht zuverlässig erkennen; bei hängender Note explizit Stop oder Quelle neu wählen. Kein willkürlicher Timeout für lange gehaltene Noten.
+
+Zusätzliche Abnahme: RX-/LED-Pinkonflikt auch nach Konfigurationsänderungen prüfen, unbekannte Quelle/C3-DIN verwerfen, Auswahl nach Neustart Web, vorherigen Lernfortschritt/Backup semantisch vergleichen, Browser-Release/Heartbeat im DIN-Modus ohne Freigabe physisch gehaltener Noten. OTraki mit verifizierten Ports/VBUS am Probelauf identifizieren, VID/PID/Deskriptoren protokollieren, `midi1-candidate` niemals als USB-Notenempfang bewerten. Probe-Build nur über geprüften UART-Debugpfad, keine normale OTA-Datei.
+
+Beide normalen LittleFS-Builds und Artefaktbündel wurden erstellt und alle SHA-256-Summen erneut geprüft. Kein `.ptupdate` im USB-Probe-Build vorhanden. Anwendungsbytes ohne Paketkopf:
+
+- s3_n16r8: 1.291.936 B. SHA-256 `d89b78dd3762cdcf0bea1ea4d6686e24f4fa7fed87edaee86826a802e9288dbc`.
+- c3_supermini: 1.363.152 B. SHA-256 `85912e9b9fc7a5dbb57e2c840fe53e9a04334592860732e6157258bd44673d11`.
 
 ## Phase-1-Ergebnisse · 2.0.0-alpha.1
 

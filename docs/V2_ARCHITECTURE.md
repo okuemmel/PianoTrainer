@@ -1,6 +1,6 @@
 # PianoTrainer v2 – Architektur und Bestandsaufnahme
 
-Stand: 1. November 2026. **Phase-0-Referenzinventar und Zielarchitektur. Phase 1 ist freigegeben; der minimale Softwareport ist in [V2_S3_PORT.md](V2_S3_PORT.md) dokumentiert. Die Entwürfe für Phasen 2–4 sind weiterhin nicht implementiert.**
+Stand: 1. November 2026. **Phase-0-Referenzinventar und Zielarchitektur. Phase 1 ist freigegeben; der minimale Softwareport ist in [V2_S3_PORT.md](V2_S3_PORT.md) dokumentiert. Die freigegebene [Phase-2-Vorbereitung](V2_MIDI_PREPARATION.md) implementiert gemeinsame Eingaben, DIN und einen isolierten USB-Probelauf. Weitergehender USB-Empfang sowie Phasen 3–4 sind offen.**
 
 Verbindliche Referenz: **v1.15.1**, `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Arbeitsbranch: `develop/v2`. [Feature-Matrix](V2_FEATURE_PARITY.md), [Migration/Meilensteine](V2_MIGRATION_PLAN.md), [Testplan](V2_TEST_PLAN.md). Die gesonderte Freigabe für Phase 1 liegt mit „dnn los“ vor; der Entwicklungsstand ist `2.0.0-alpha.1`.
 
@@ -222,3 +222,10 @@ Spätere Eingabe könnte mit einem begrenzten Scorefenster über Onset-/Pitch-Mu
 8. Vor einer Bausatzfreigabe: Projektlizenz, Quellen-/Attributionsbestand, reproduzierbare Stückliste/Schaltpläne und eigener Hardwareprüfstand. Der Phase-0-Status ist keine Produktfreigabe.
 
 Die angegebenen SDK-Dokumentationsversionen erläutern Alternativen; sie sind **keine** Auswahl einer neuen Buildversion. Boarddaten sind gegen Herstellerquellen und anschließend gegen das echte Gerät zu prüfen. Alle weiteren Schritte und Abnahmebedingungen stehen im [Migrationsplan](V2_MIGRATION_PLAN.md).
+
+## Phase-2-Entscheidungen nach Freigabe
+
+- **A02 konkretisiert:** ESP-IDF-4.4.7-Hostbibliothek/Client-APIs sind im bestehenden S3-SDK vorhanden und im isolierten `s3_usb_probe` erfolgreich gelinkt. Kein Stack-/SDK-Wechsel in dieser Vorbereitung. Probelauf nur Enumeration, keine MIDI-Transfers oder Kompatibilitätszusage. Grenzen und Alternativen siehe [Vorbereitungsbericht](V2_MIDI_PREPARATION.md).
+- **Eingabebesitz:** Ein Arduino-Loop verarbeitet Web, begrenzte UART-Lesevorgänge und den Router. Es gibt in dieser Phase noch keine MIDI-Worker, die direkt Lern-/LED-Daten verändern. USB-Probe-Daemon bearbeitet nur SDK-Bibliotheksereignisse; Client-Callbacks/Status bleiben im Loop, sein gemeinsamer Fehlerzähler ist atomar. MIDI-Queue/Workertrennung erst bei tatsächlichen USB-Transfers bzw. Phase 3.
+- **Quellenauswahl:** Laufzeitwahl Web/DIN, Default Web, keine neuen NVS-Felder. Gleichzeitige physische Quellen bleiben gesperrt, obwohl das portable Ledger bereits Quellen/Kanäle unabhängig hält. Das vermeidet eine ungeprüfte Persistenz-/Hardwareänderung. Erneute Auswahl/Stop dient bei DIN-Geräten ohne Active Sensing zur bewussten Notenfreigabe.
+- **Kompatibilität:** Die vorhandene Lernengine und ihre musikalische Uhr bleiben erhalten. Der Timestamp ist die Parser-/Loop-Empfangszeit, keine gemessene Leitungs-/LED-Latenz; P95/P99 sind weiterhin nicht verfügbar.
