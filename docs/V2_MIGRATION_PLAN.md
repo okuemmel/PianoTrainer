@@ -114,6 +114,12 @@ Neue Hardware zunächst mit eigenem Hostnamen betreiben, wenn der C3 parallel im
 
 Die Schritte verwenden Feature-Branches/PRs nach `develop/v2`. Änderungen am Framework, an Quelle/Queue, am LED-Treiber und am Transport sind getrennte, nachvollziehbare Änderungen. Ein temporärer C3-Buildcheck schützt gemeinsame Dateien während der Übergangsphase; eine dauerhafte parallele C3-Produktlinie wird nicht vorausgesetzt. Dokumentations-/Build-/Hardwarestatus bleibt je Commit zuordenbar.
 
+## Aktueller Phase-1-Stand
+
+Phase 1 ist durch „dnn los“ freigegeben. Der S3-Softwareport und der C3-Regressionsbuild existieren als `2.0.0-alpha.1`; Details, Datenumzug und Entwicklungsartefakte: [V2_S3_PORT.md](V2_S3_PORT.md). Der binäre Browserexport/-import inklusive MIDI-Bytes, CRC32 je Datei und UI-Präferenzen ist in beiden Profilen implementiert und mit getrennten IndexedDB-Datenbanken getestet. Der alte C3-Origin benötigt dafür den ausdrücklich als Entwicklungsversion bezeichneten C3-Helferbuild. Er wurde nicht auf die bestehende Hardware übertragen.
+
+Das N16R8-Board ist noch im Zulauf. P1a/P1d sind **nicht abgenommen**: kein reales Boot-/Flash-/PSRAM-Ergebnis, keine WLAN-/LED-/Restore-/OTA-/Recovery-/iOS-Abnahme. Keine Phase-2-Funktion und keine finale v2.0.0-Freigabe daraus ableiten. Vorgesehenes Phase-2-Testgerät ist der OTraki-DIN/USB-MIDI-Konverter; Hostbuchse und geschützte VBUS-Versorgung bleiben offen.
+
 ## 7. Freigabecheckliste
 
 **Phase 0:** Referenz verifiziert, Feature-/APIinventar vollständig, wiederverwendbare Komponenten und tatsächliche Lücken benannt, Hardwareangabe aufgenommen, Daten-/Packagebindung und SDK-Alternativen offengelegt, Prüfungen korrekt klassifiziert. Keinerlei Firmware auf den S3 oder den C3 übertragen.

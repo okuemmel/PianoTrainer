@@ -1,6 +1,29 @@
 # PianoTrainer v2 – Prüfplan und Nachweisführung
 
-Stand: 1. November 2026. **Phase 0. Dieser Plan ist keine S3-Testfreigabe.** Referenz: Tag v1.15.1, Commit `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Alle F-/N-IDs beziehen sich auf [V2_FEATURE_PARITY.md](V2_FEATURE_PARITY.md), Phasengates auf [V2_MIGRATION_PLAN.md](V2_MIGRATION_PLAN.md).
+Stand: 1. November 2026. **Phase 1: Softwareport getestet, Hardwareabnahme offen.** Referenz: Tag v1.15.1, Commit `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Alle F-/N-IDs beziehen sich auf [V2_FEATURE_PARITY.md](V2_FEATURE_PARITY.md), Phasengates auf [V2_MIGRATION_PLAN.md](V2_MIGRATION_PLAN.md).
+
+## Phase-1-Ergebnisse · 2.0.0-alpha.1
+
+Am 1. November 2026 nach Freigabe ausgeführt, Branch `feature/v2-s3-port`. Das Board befindet sich noch im Zulauf. **Keine realen C3-/S3-Uploads oder Hardwaretests in dieser Phase.** Anbieterbeschreibung WROOM-1-N16R8 und geplanter OTraki-DIN/USB-Konverter sind im [Portierungsbericht](V2_S3_PORT.md) erfasst.
+
+| Prüfung | Tatsächliches Ergebnis | Aussagegrenze |
+|---|---|---|
+| `npm test` | **89/89 bestanden** | Bestehende 85 Tests erhalten; neue Fälle für S3-/C3-Kreuzpakete, binäre Browsermigration/Integritätsfehler/atomare Limits, S3-Status/Restore-GPIO-Vorabprüfung |
+| `pio test -e native -e native_s3` | **42/42 bestanden**, je 21 mit beiden Boardprofilen | portable Mapping-/GPIO-/Lern-/Katalog-/Sessionlogik, keine physische Ansteuerung |
+| Python-Buildwerkzeuge | **6/6 bestanden** | Chips/Layouts/Größen/Partitionen/Pakete/Releaseartefakte; keine reale OTA-Übertragung |
+| Prettier + clang-format der geänderten C++-Quellen | bestanden | Formatprüfung, kein Laufzeitnachweis |
+| S3-Firmwarebuild | erfolgreich; statischer RAM **57.188/327.680 B**, Linker-Flash **1.275.573/4.194.304 B** | Linkermap bindet `esp32s3/qio_opi`; keine gemessene PSRAM-Erkennung/Heapwerte |
+| C3-Regressionsbuild | erfolgreich; statischer RAM **51.324/327.680 B**, Linker-Flash **1.304.798/1.572.864 B** | Entwicklungsbuild, ersetzt nicht die stabile v1-Hardwareabnahme |
+| Beide LittleFS-Builds | erfolgreich; S3 **8.323.072 B**, C3 **983.040 B** | Imagegröße entspricht jeweiliger Partition; kein Mount-/Unterbrechungstest am Gerät |
+| Getrennte Artefaktbündel | beide erstellt, alle SHA-256-Summen erneut geprüft | `dist/v2.0.0-alpha.1/{s3_n16r8,c3_supermini}`; keine Releasefreigabe |
+| M01–M22 / H01–H07 | **weiterhin offen** | kein S3 verfügbar; browserseitige Testdoubles beweisen keine reale NVS-/OTA-/iOS-Parität |
+
+Anwendungsimages ohne Paketkopf:
+
+- S3: **1.275.936 B**, SHA-256 `5a57d0537bf23952669bb1283f9e7f564200595860af1bcf0767d74a281a3205`.
+- C3-Datenexporthilfe: **1.355.808 B**, SHA-256 `d235d15f7ddca0d3729ba9c8a7b0357c358c57e96dc48d9d33b27685df9242a8`.
+
+Die folgenden Abschnitte bewahren das Phase-0-Baselineinventar und die vollständigen noch offenen manuellen Abnahmekriterien. Phase 2 (MIDI-Parser/USB-Host) und Phase 3/4 sind nicht durch diese Tests erledigt. U09/U10 sind hinsichtlich vorhandener Paket-/Browserfälle teilweise implementiert; vollständige Konfigurations-/Hardwaremigration und Fehlerabnahme bleiben offen.
 
 ## 1. Erneut ausgeführte Baselineprüfungen
 
@@ -134,11 +157,11 @@ Interne Entwicklungsziele aus dem Auftrag: **P95 <10 ms; Maximum möglichst <20 
 | Physische Reaktionszeit / TX-/Latchdauer | nicht gemessen; nur rechnerische Drahtzeiten in Architektur | nicht gemessen | nicht gemessen |
 | MIDI-Events/s und verlorene Events | kein realer MIDI-Treiber | nicht gemessen | nicht gemessen |
 | Queue-Auslastung / größter Heapblock / Taskanteile | keine entsprechende Instrumentierung | nicht gemessen | nicht gemessen |
-| Statischer RAM / Linker-Flash | 51.324 B / 1.300.624 B, echter Build | noch kein S3-Build | keine Laufzeitwerte aus Linkerzahlen ableiten |
+| Statischer RAM / Linker-Flash | 51.324 B / 1.300.624 B, echter Build | S3-Build: 57.188 B / 1.275.573 B; Laufzeit offen | keine Laufzeitwerte aus Linkerzahlen ableiten |
 | Audio-/Canvas-Drift und FPS | keine qualifizierte Messung | nicht gemessen | nicht gemessen |
 
 ## 7. Abschluss und Freigabe
 
 P1-Parität braucht für jede F-ID einen nachvollziehbaren S3-Beleg, einschließlich Audio auf tatsächlichem iPhone/iPad und der Datenübernahme. „Build erfolgreich“ kann keinen offenen manuellen Fall schließen. Ein Fehler oder ungeklärter Ergebnisverlust in Restore, Hotplug oder Seek blockiert die betreffende Meilensteinabnahme.
 
-Vor v2.0.0: alle vereinbarten U-/M-/H-Prüfungen ausgeführt, F-Matrix ohne offene Regression, RC mit unveränderlichem Hash, Risiken/Kompatibilitätsliste vollständig, Nutzerfreigabe für Release und eventuelle main-Integration. Phase 0 endet bei diesen Dokumenten und wartet ausdrücklich auf die Freigabe zu Phase 1.
+Vor v2.0.0: alle vereinbarten U-/M-/H-Prüfungen ausgeführt, F-Matrix ohne offene Regression, RC mit unveränderlichem Hash, Risiken/Kompatibilitätsliste vollständig, Nutzerfreigabe für Release und eventuelle main-Integration. Phase 1 ist freigegeben und softwareseitig vorbereitet; ihr Hardwaremeilenstein bleibt bis zu tatsächlichen S3-Nachweisen offen.

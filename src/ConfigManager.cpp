@@ -126,7 +126,8 @@ void ConfigManager::backup(JsonObject o, bool internal) const {
     item["best"] = lessonResults[i].best;
   }
 }
-bool ConfigManager::applyProfile(JsonDocument& doc, bool persist, bool internal, String& error) {
+bool ConfigManager::applyProfile(JsonDocument& doc, bool persist, bool internal, String& error,
+                                 bool validateOnly) {
   auto o = doc.as<JsonObject>();
   LedConfig nextLed;
   std::array<LessonResult, LessonCount> nextResults{};
@@ -179,6 +180,7 @@ bool ConfigManager::applyProfile(JsonDocument& doc, bool persist, bool internal,
              user == cloudUser) {
     password = cloudPassword;
   }
+  if (validateOnly) return true;
   // Always overwrite any supplied password: public backups never import credentials.
   cloud["password"] = password;
   if (doc.overflowed()) {
@@ -207,6 +209,9 @@ bool ConfigManager::applyProfile(JsonDocument& doc, bool persist, bool internal,
 }
 bool ConfigManager::restore(JsonDocument& doc, String& error) {
   return applyProfile(doc, true, false, error);
+}
+bool ConfigManager::validateRestore(JsonDocument& doc, String& error) {
+  return applyProfile(doc, false, false, error, true);
 }
 bool ConfigManager::saveLessonResult(size_t index, int accuracy) {
   if (index >= LessonCount) return false;

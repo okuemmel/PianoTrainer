@@ -1,9 +1,16 @@
 #include <LittleFS.h>
 #include <Update.h>
+#include <esp_app_format.h>
 #include <esp_ota_ops.h>
 
 #include "AppInfo.h"
 #include "TrainerWebServer.h"
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+static_assert(BoardProfile::imageChipId == ESP_CHIP_ID_ESP32S3, "Board/chip mismatch");
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+static_assert(BoardProfile::imageChipId == ESP_CHIP_ID_ESP32C3, "Board/chip mismatch");
+#endif
 
 void TrainerWebServer::abortUpdate() {
   if (updateStarted) Update.abort();
@@ -52,9 +59,11 @@ void TrainerWebServer::updateUpload() {
       StaticJsonDocument<1024> metadata;
       if (deserializeJson(metadata, updateHeader, sizeof(updateHeader)) ||
           metadata["format"] != "piano-trainer-update" || metadata["schema"] != 1 ||
-          metadata["target"] != "esp32c3" || !metadata["size"].is<uint32_t>() ||
-          !metadata["md5"].is<const char*>()) {
-        updateError = "Ungültiges Updatepaket für ESP32-C3.";
+          metadata["target"] != BoardProfile::target ||
+          (metadata["layout"] != BoardProfile::layout &&
+           !(BoardProfile::imageChipId == 5 && metadata["layout"].isNull())) ||
+          !metadata["size"].is<uint32_t>() || !metadata["md5"].is<const char*>()) {
+        updateError = "Updatepaket passt nicht zum Flash-Layout.";
         return;
       }
       const String kind = metadata["kind"] | "";
@@ -92,9 +101,9 @@ void TrainerWebServer::updateUpload() {
     const size_t length = upload.currentSize - offset;
     if (length) {
       if (!updateReceived && !updateFilesystem &&
-          (length < 24 || upload.buf[offset] != 0xe9 || upload.buf[offset + 12] != 5 ||
-           upload.buf[offset + 13] != 0)) {
-        updateError = "Firmware ist kein ESP32-C3-Anwendungsimage.";
+          (length < 24 || upload.buf[offset] != 0xe9 ||
+           upload.buf[offset + 12] != BoardProfile::imageChipId || upload.buf[offset + 13] != 0)) {
+        updateError = "Updatepaket passt nicht zum Flash-Layout.";
         abortUpdate();
         return;
       }
@@ -118,12 +127,25 @@ void TrainerWebServer::maintenanceRoutes() {
     DynamicJsonDocument doc(24576);
     config.backup(doc.to<JsonObject>());
     doc["firmware"] = AppInfo::Version;
+    doc["sourceTarget"] = BoardProfile::target;
+    doc["sourceLayout"] = BoardProfile::layout;
     if (doc.overflowed()) {
       error(500, "Backup ist zu groß.");
       return;
     }
     server.sendHeader("Content-Disposition", "attachment; filename=piano-trainer-backup.json");
     json(200, doc);
+  });
+  server.on("/api/restore/preview", HTTP_POST, [this] {
+    if (!auth(true)) return;
+    DynamicJsonDocument doc(24576);
+    if (!body(doc, 16384)) return;
+    String message;
+    if (!config.validateRestore(doc, message)) {
+      error(400, message);
+      return;
+    }
+    server.send(200, "application/json", "{\"ok\":true}");
   });
   server.on("/api/restore", HTTP_POST, [this] {
     if (!auth(true)) return;

@@ -31,8 +31,10 @@ class ConfigManager {
   static bool decode(JsonObjectConst obj, LedConfig& c, String& error);
   void backup(JsonObject object, bool internal = false) const;
   bool restore(JsonDocument& document, String& error);
+  bool validateRestore(JsonDocument& document, String& error);
 
  private:
   Preferences prefs;
-  bool applyProfile(JsonDocument& document, bool persist, bool internal, String& error);
+  bool applyProfile(JsonDocument& document, bool persist, bool internal, String& error,
+                    bool validateOnly = false);
 };

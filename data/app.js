@@ -717,6 +717,7 @@ $("#reset").onclick = () => {
     });
 };
 function renderStatus(s) {
+  $("#appBoard").textContent = s.board;
   if (!accessDirty) $("#authEnabled").checked = s.authEnabled === true;
   I18n.text($("#appVersion"), () =>
     s.firmware ? I18n.t("v") + s.firmware : I18n.t("Version unbekannt"),
@@ -747,6 +748,12 @@ function renderStatus(s) {
     Betriebszeit: Math.floor(s.uptime / 60) + " min " + (s.uptime % 60) + " s",
     "Freier Heap": Math.round(s.heap / 1024) + " KiB",
     Flash: Math.round(s.flash / 1048576) + " MiB",
+    ...(s.psram !== undefined
+      ? {
+          PSRAM: Math.round(s.psram / 1048576) + " MiB",
+          "Freies PSRAM": Math.round(s.freePsram / 1024) + " KiB",
+        }
+      : {}),
     Dateisystem: s.filesystem ? "LittleFS bereit" : "Nicht verfügbar",
     "IP-Adresse": s.connected ? s.ip : s.ap ? s.apIp : "Keine IP",
     "Setup-AP": s.ap ? s.apIp : "Aus",
@@ -2622,7 +2629,7 @@ function maintenanceControls(busy) {
   maintenanceBusy = busy;
   document
     .querySelectorAll(
-      "#updateForm button, #restoreForm button, #downloadBackup, #updateFile, #backupFile",
+      "#updateForm button, #restoreForm button, #downloadBackup, #updateFile, #backupFile, #downloadBrowserBackup, #browserRestoreForm button, #browserBackupFile",
     )
     .forEach((node) => (node.disabled = busy));
 }
@@ -2639,6 +2646,78 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = "";
   }
 });
+$("#downloadBrowserBackup").onclick = () =>
+  run(async () => {
+    if (maintenanceBusy) return;
+    maintenanceControls(true);
+    try {
+      const preferences = {};
+      for (const key of [
+        "language",
+        "navigationCollapsed",
+        "showScore",
+        "scoreLabels",
+        "trainingDisplay",
+      ]) {
+        const value = localStorage.getItem(key);
+        if (value !== null) preferences[key] = value;
+      }
+      const url = URL.createObjectURL(
+        await favorites.exportArchive(preferences),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "piano-trainer-browser.ptbrowser";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      maintenanceMessage(() => I18n.t("Backup heruntergeladen."));
+    } finally {
+      maintenanceControls(false);
+    }
+  });
+$("#browserRestoreForm").onsubmit = (event) => {
+  event.preventDefault();
+  run(async () => {
+    if (maintenanceBusy) return;
+    const file = $("#browserBackupFile").files[0];
+    if (!file || file.size > 33554432 + 262156)
+      throw Error("Ungültiges Browser-Backup.");
+    if (
+      !confirm(
+        I18n.t(
+          "Browser-Favoriten importieren und Ansicht übernehmen? Gleiche Favoriten werden ersetzt.",
+        ),
+      )
+    )
+      return;
+    maintenanceControls(true);
+    try {
+      const preferences = await favorites.importArchive(
+        await file.arrayBuffer(),
+      );
+      let preferencesSaved = true;
+      try {
+        for (const [key, value] of Object.entries(preferences))
+          localStorage.setItem(key, value);
+      } catch {
+        preferencesSaved = false;
+      }
+      maintenanceMessage(() =>
+        I18n.t(
+          preferencesSaved
+            ? "Browser-Backup importiert. Seite neu laden, um die Ansicht zu übernehmen."
+            : "Favoriten importiert. Ansicht konnte nicht gespeichert werden; Browser-Speicher prüfen.",
+        ),
+      );
+      await refreshFavorites();
+      $("#maintenanceReload").hidden = false;
+    } finally {
+      maintenanceControls(false);
+    }
+  });
+};
 $("#downloadBackup").onclick = () =>
   run(async () => {
     if (maintenanceBusy) return;
@@ -2670,6 +2749,22 @@ $("#restoreForm").onsubmit = (event) => {
     }
     if (backup?.format !== "piano-trainer-backup" || backup.schema !== 1)
       throw Error("Unbekanntes oder unvollständiges Backup.");
+    if (backup.led && !status.pins.includes(backup.led.pin)) {
+      const value = prompt(
+        I18n.t(
+          "Der LED-Pin im Backup ist auf diesem Board gesperrt. Bitte einen passenden GPIO wählen:",
+        ) +
+          " " +
+          status.pins.join(", "),
+      );
+      if (value === null) return;
+      const pin = Number(value);
+      if (!/^\d+$/.test(value) || !status.pins.includes(pin))
+        throw Error("Ungültiger LED-Pin.");
+      backup.led.pin = pin;
+    }
+    // Validate the complete profile before stopping playback or touching NVS.
+    if (status?.update) await api("restore/preview", backup);
     if (
       !confirm(
         I18n.t(
@@ -2703,6 +2798,7 @@ $("#updateForm").onsubmit = (event) => {
     const metadata = window.TrainerMaintenance.parsePackage(
       new Uint8Array(await file.slice(0, 256).arrayBuffer()),
       file.size,
+      status?.update,
     );
     const kind =
       metadata.kind === "web"

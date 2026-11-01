@@ -10,12 +10,14 @@ async function setup(
   language = "de",
   sessionServer = null,
   indexedDB = undefined,
+  device = {},
 ) {
   const dom = new JSDOM(html, {
     url: "http://192.168.4.1/",
     runScripts: "outside-only",
   });
   dom.window.TextDecoder = TextDecoder;
+  dom.window.TextEncoder = TextEncoder;
   if (indexedDB) dom.window.indexedDB = indexedDB;
   const calls = [];
   let course = [
@@ -234,6 +236,7 @@ async function setup(
           { ssid: "<img src=x onerror=alert(1)>", rssi: -55, open: false },
         ],
       };
+    if (url === "/api/status") Object.assign(data, device);
     return {
       ok: true,
       status: 200,
@@ -1869,6 +1872,103 @@ test("update UI rejects an incompatible package and waits for verified upload su
   assert.match(
     s.d.querySelector("#maintenanceStatus").textContent,
     /Update geprüft und gespeichert/,
+  );
+});
+
+test("S3 UI uses live update capabilities and previews migrated GPIO selection before stopping playback", async (t) => {
+  const device = {
+    board: "ESP32-S3 DevC-1 N16R8",
+    psram: 8388608,
+    freePsram: 8000000,
+    flash: 16777216,
+    pins: [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21],
+    update: {
+      target: "esp32s3",
+      layout: "s3-n16r8-v1",
+      firmwareMax: 4194304,
+      filesystemSize: 8323072,
+    },
+  };
+  const s = await setup(undefined, "en", null, undefined, device);
+  t.after(() => s.w.close());
+  assert.equal(s.d.querySelector("#appBoard").textContent, device.board);
+  assert.equal(s.d.querySelectorAll("#pin option").length, 18);
+  assert.match(s.d.querySelector("#systemInfo").textContent, /PSRAM8 MiB/);
+  const backup = {
+    format: "piano-trainer-backup",
+    schema: 1,
+    led: { pin: 20 },
+    lessons: { "first-note": { runs: 7, best: 99 } },
+  };
+  Object.defineProperty(s.d.querySelector("#backupFile"), "files", {
+    value: [{ size: 200, text: async () => JSON.stringify(backup) }],
+  });
+  s.w.confirm = () => true;
+  s.w.prompt = () => null;
+  s.d
+    .querySelector("#restoreForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  assert.equal(s.calls.filter((c) => c.url === "/api/restore").length, 0);
+  s.w.prompt = () => "19";
+  s.d
+    .querySelector("#restoreForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  await tick();
+  await tick();
+  assert.equal(
+    s.calls.filter((c) => c.url === "/api/restore/preview").length,
+    0,
+  );
+  s.w.prompt = () => "4";
+  s.d
+    .querySelector("#restoreForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  for (let i = 0; i < 6; i++) await tick();
+  const preview = s.calls.findIndex((c) => c.url === "/api/restore/preview"),
+    quiet = s.calls.findIndex(
+      (c) => c.url === "/api/training" && c.body?.command === "free",
+    ),
+    restore = s.calls.findIndex((c) => c.url === "/api/restore");
+  assert.ok(preview >= 0 && quiet > preview && restore > quiet);
+  assert.deepEqual(s.calls[restore].body.led, { pin: 4 });
+  assert.deepEqual(s.calls[restore].body.lessons, backup.lessons);
+
+  let uploads = 0;
+  s.w.TrainerMaintenance.upload = async () => {
+    uploads++;
+    return { ok: true };
+  };
+  const metadata = {
+    format: "piano-trainer-update",
+    schema: 1,
+    target: "esp32s3",
+    layout: "s3-n16r8-v1",
+    kind: "firmware",
+    size: 2000000,
+    md5: "0".repeat(32),
+  };
+  Object.defineProperty(s.d.querySelector("#updateFile"), "files", {
+    value: [
+      {
+        size: 2000256,
+        slice: () => ({
+          arrayBuffer: async () =>
+            new TextEncoder().encode(JSON.stringify(metadata).padEnd(256, " "))
+              .buffer,
+        }),
+      },
+    ],
+  });
+  s.d
+    .querySelector("#updateForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  for (let i = 0; i < 6; i++) await tick();
+  assert.equal(
+    uploads,
+    1,
+    "a valid S3 image larger than the C3 slot is allowed",
   );
 });
 

@@ -21,8 +21,12 @@ void gpio_allowlist() {
   LedConfig c;
   for (int p = -1; p < 50; ++p) {
     c.pin = p;
+#if defined(TRAINER_BOARD_S3_N16R8)
+    bool expected = p == 1 || p == 2 || (p >= 4 && p <= 18) || p == 21;
+#else
     bool expected = p == 0 || p == 1 || p == 3 || p == 4 || p == 5 || p == 6 || p == 7 || p == 10 ||
                     p == 20 || p == 21;
+#endif
     TEST_ASSERT_EQUAL(expected, validate(c) == nullptr);
   }
 }

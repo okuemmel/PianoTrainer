@@ -7,8 +7,15 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
+import struct
 
 ROOT = Path(__file__).resolve().parents[1]
+def firmware(chip=5, suffix=b''):
+    data = bytearray(256)
+    data[0] = 0xE9
+    data[12:14] = chip.to_bytes(2, 'little')
+    return bytes(data) + suffix
+
 def load(name):
     spec = importlib.util.spec_from_file_location(name, ROOT / 'tools' / (name + '.py'))
     module = importlib.util.module_from_spec(spec)
@@ -47,7 +54,7 @@ class BuildTools(unittest.TestCase):
         packer = load('build_update')
         with tempfile.TemporaryDirectory() as folder:
             image = Path(folder) / 'firmware.bin'
-            for content in [b'first image', b'rebuilt image']:
+            for content in [firmware(suffix=b'first image'), firmware(suffix=b'rebuilt image')]:
                 image.write_bytes(content)
                 packed = packer.package(image, 'firmware', '1.11.0').read_bytes()
                 metadata = json.loads(packed[:256])
@@ -62,6 +69,13 @@ class BuildTools(unittest.TestCase):
             root = Path(folder); images = root/'build'; images.mkdir()
             for name in ['firmware','littlefs','bootloader','partitions']:
                 (images/(name+'.bin')).write_bytes((name+' image').encode())
+            (images/'firmware.bin').write_bytes(firmware())
+            (images/'littlefs.bin').write_bytes(bytes(0xF0000))
+            (images/'bootloader.bin').write_bytes(firmware())
+            profiles = load('update_profiles')
+            (images/'partitions.bin').write_bytes(b''.join(
+                struct.pack('<HBBII16sI', 0x50AA, kind, sub, start, size, name.encode(), 0)
+                for name, (kind, sub, start, size) in profiles.partition_entries(profiles.PROFILES['c3_supermini']).items()))
             boot = root/'boot_app0.bin'; boot.write_bytes(b'ota initialization')
             for kind,stem in [('firmware','firmware'),('web','littlefs')]:
                 packer.package(images/(stem+'.bin'),kind,'1.11.0')
@@ -76,6 +90,50 @@ class BuildTools(unittest.TestCase):
             (images/'firmware.bin').write_bytes(b'changed after packaging')
             with self.assertRaisesRegex(ValueError,'Stale'):
                 release.build(images,output,boot,'1.11.0')
+
+    def test_board_packages_reject_cross_chip_and_wrong_filesystem_sizes(self):
+        packer = load('build_update')
+        with tempfile.TemporaryDirectory() as folder:
+            image = Path(folder)/'firmware.bin'
+            image.write_bytes(firmware(9))
+            packed = packer.package(image, 'firmware', '2.0.0-alpha.1', 's3_n16r8').read_bytes()
+            metadata = json.loads(packed[:256])
+            self.assertEqual(metadata['target'], 'esp32s3')
+            self.assertEqual(metadata['layout'], 's3-n16r8-v1')
+            self.assertEqual(len(packed), 512)
+            with self.assertRaisesRegex(ValueError, 'chip'):
+                packer.package(image, 'firmware', 'local', 'c3_supermini')
+            image.write_bytes(firmware(5))
+            with self.assertRaisesRegex(ValueError, 'chip'):
+                packer.package(image, 'firmware', 'local', 's3_n16r8')
+            image.write_bytes(bytes(0xF0000))
+            with self.assertRaisesRegex(ValueError, 'Filesystem'):
+                packer.package(image, 'web', 'local', 's3_n16r8')
+
+    def test_partition_sources_match_binary_layouts_and_flash_capacity(self):
+        profiles = load('update_profiles')
+        for profile in profiles.PROFILES.values():
+            entries = profiles.partition_entries(profile)
+            actual = []
+            for line in (ROOT/profile['partitions']).read_text().splitlines():
+                if not line.strip() or line.startswith('#'): continue
+                name, kind, sub, start, size = map(str.strip, line.split(','))
+                self.assertIn(name, entries)
+                self.assertEqual((int(start, 0), int(size, 0)), entries[name][2:])
+                actual.append((int(start, 0), int(size, 0)))
+            self.assertEqual(len(actual), len(entries))
+            end = 0
+            for start, size in sorted(actual):
+                self.assertGreaterEqual(start, end)
+                self.assertEqual(start % 4096, 0)
+                end = start + size
+            self.assertEqual(end, profile['flash_size'])
+            image = b''.join(struct.pack('<HBBII16sI', 0x50AA, kind, sub, start, size, name.encode(), 0)
+                             for name, (kind, sub, start, size) in entries.items())
+            profiles.validate_partitions(image, profile)
+            other = next(p for p in profiles.PROFILES.values() if p != profile)
+            with self.assertRaisesRegex(ValueError, 'Partition'):
+                profiles.validate_partitions(image, other)
 
     def test_changelog_bootstraps_history_and_records_final_commit_subject_once(self):
         changelog = load('update_changelog')

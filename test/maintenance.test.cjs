@@ -38,6 +38,49 @@ test("update package rejects wrong target, invalid sizes, hashes, schema and tru
   assert.throws(() => parsePackage(header(base), 1000255));
   assert.throws(() => parsePackage(new Uint8Array(256), 1000256));
 });
+test("S3 updates require the device layout, reject cross-chip packages and preserve v1 C3 compatibility", () => {
+  const device = {
+    target: "esp32s3",
+    layout: "s3-n16r8-v1",
+    firmwareMax: 4194304,
+    filesystemSize: 8323072,
+  };
+  const s3 = {
+    ...base,
+    target: "esp32s3",
+    layout: device.layout,
+    size: 2000000,
+  };
+  assert.equal(
+    parsePackage(header(s3), s3.size + 256, device).target,
+    "esp32s3",
+  );
+  for (const invalid of [
+    base,
+    { ...s3, layout: undefined },
+    { ...s3, layout: "other" },
+    { ...s3, size: 4194305 },
+  ])
+    assert.throws(() =>
+      parsePackage(header(invalid), invalid.size + 256, device),
+    );
+  assert.throws(() => parsePackage(header(s3), s3.size + 256));
+  const web = { ...s3, kind: "web", size: device.filesystemSize };
+  assert.equal(parsePackage(header(web), web.size + 256, device).kind, "web");
+  assert.throws(() =>
+    parsePackage(header({ ...web, size: 983040 }), 983296, device),
+  );
+  assert.throws(() =>
+    parsePackage(header(s3), s3.size + 256, { ...device, firmwareMax: 0 }),
+  );
+  assert.equal(
+    parsePackage(header({ ...base, layout: "c3-v1" }), base.size + 256).kind,
+    "firmware",
+  );
+  assert.throws(() =>
+    parsePackage(header({ ...base, layout: "other" }), base.size + 256),
+  );
+});
 test("uploader sends mutation header and multipart file, reports transfer separately from verified success", async () => {
   let instance;
   class XHR {

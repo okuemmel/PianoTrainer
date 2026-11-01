@@ -1,7 +1,14 @@
 /* Update package parsing is independent of the UI and of the ESP32 transport. */
 (function (root) {
   "use strict";
-  function parsePackage(header, fileSize) {
+  function parsePackage(header, fileSize, device) {
+    // Legacy firmware has no capabilities field and is always the v1 C3.
+    const profile = device ?? {
+      target: "esp32c3",
+      layout: "c3-v1",
+      firmwareMax: 1572864,
+      filesystemSize: 983040,
+    };
     let metadata;
     try {
       metadata = JSON.parse(new TextDecoder().decode(header));
@@ -9,17 +16,23 @@
       throw Error("Ungültiges Updatepaket für ESP32-C3.");
     }
     if (
+      typeof profile.target !== "string" ||
+      typeof profile.layout !== "string" ||
       header.byteLength !== 256 ||
       metadata.format !== "piano-trainer-update" ||
       metadata.schema !== 1 ||
-      metadata.target !== "esp32c3" ||
+      metadata.target !== profile.target ||
+      (metadata.layout !== profile.layout &&
+        !(profile.target === "esp32c3" && metadata.layout === undefined)) ||
       !["firmware", "web"].includes(metadata.kind) ||
       !Number.isInteger(metadata.size) ||
       !/^[a-f0-9]{32}$/i.test(metadata.md5 || "") ||
       metadata.size + 256 !== fileSize ||
       (metadata.kind === "web"
-        ? metadata.size !== 983040
-        : metadata.size < 256 || metadata.size > 1572864)
+        ? !profile.filesystemSize || metadata.size !== profile.filesystemSize
+        : !profile.firmwareMax ||
+          metadata.size < 256 ||
+          metadata.size > profile.firmwareMax)
     )
       throw Error("Updatepaket passt nicht zum Flash-Layout.");
     return metadata;
