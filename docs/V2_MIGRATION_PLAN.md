@@ -1,12 +1,12 @@
 # PianoTrainer v2 – Migrationsplan und Freigaben
 
-Stand: 1. November 2026. **Planung in Phase 0. Keine Änderung an Firmware, APIs, Gerätekonfiguration oder Buildprofilen.**
+Stand: 1. November 2026. **Referenzplanung aus Phase 0; Phase 1 softwareseitig portiert, Phase 2 vorgezogen vorbereitet. Hardwaremeilensteine offen.**
 
 Referenz: v1.15.1, Commit `6e8206f0dfab4b182a6550b6aa9f3f70d67e2457`. Branch `develop/v2`. Verbindlich sind [Feature-Matrix](V2_FEATURE_PARITY.md), [Architekturentscheidungen](V2_ARCHITECTURE.md) und [Testplan](V2_TEST_PLAN.md).
 
 ## 1. Migrationsprinzip
 
-Die C3-Version bleibt am bestehenden Tag mit ihren geprüften Paketen erhalten. S3-Code entsteht erst nach Freigabe, auf `develop/v2` bzw. Feature-Branches mit Pull Requests dorthin. **Kein automatischer Merge nach `main`, keine v2.0.0-Freigabe aus einem erfolgreichen Build.** Phase 0 erzeugt nur die vier Planungsdokumente und einen eindeutig als Planung bezeichneten Changelog-Eintrag. Die aktuelle AppInfo-Version bleibt 1.15.1; es wird kein vermeintlich fertiges v2-Artefakt erzeugt.
+Die C3-Version bleibt am bestehenden Tag mit ihren geprüften Paketen erhalten. S3-Code entsteht erst nach Freigabe, auf `develop/v2` bzw. Feature-Branches mit Pull Requests dorthin. **Kein automatischer Merge nach `main`, keine v2.0.0-Freigabe aus einem erfolgreichen Build.** Phase 0 erzeugt nur die vier Planungsdokumente und einen eindeutig als Planung bezeichneten Changelog-Eintrag. Die damalige Phase-0-AppInfo-Version bleibt 1.15.1; es wird kein vermeintlich fertiges v2-Artefakt erzeugt.
 
 Das Zielboard wurde vom Nutzer als **ESP32-S3 DevC-1-N16R8-S3** genannt. Die Modul-Speicherklasse ist in der Architektur dokumentiert. Hersteller/Revision, reale Speichererkennung, Host-VBUS und Pinbeschaltung bleiben konkrete Prüfpunkte. Phase 1 darf damit nicht still ein beliebiges DevKit mit 8-MB-/No-PSRAM-Standardprofil verwenden.
 
@@ -127,3 +127,7 @@ Das N16R8-Board ist noch im Zulauf. P1a/P1d sind **nicht abgenommen**: kein real
 **Vor Phase 1:** Nutzerfreigabe des hier vorliegenden Phase-0-Ergebnisses; konkret benötigte Hardwareunterlagen/Messzugang festhalten. Offene Boarddetails werden in P1a vor verbindlichen Pins/USB-Versorgung geklärt; sie rechtfertigen keine geratenen Treibereinstellungen.
 
 **Vor v2.0.0:** Matrix ohne offene Regressionen, reale S3- und MIDI-/LED-/Sync-Tests bestanden, alle UI/API-/Sprach-/Bibliotheksfunktionen vorhanden, Datenmigration und OTA/Recovery tatsächlich geprüft, Messziele mit Rohdaten bewertet, bekannte Einschränkungen sichtbar und Release Candidate abgenommen. Eine Abweichung bleibt offen, bis sie behoben oder ausdrücklich als geänderter Auftrag freigegeben wird.
+
+## Vorgezogene Phase-2-Vorbereitung
+
+Zusätzlich freigegeben mit „dannlos“. [V2_MIDI_PREPARATION.md](V2_MIDI_PREPARATION.md) dokumentiert `2.0.0-alpha.2`, gemeinsame Ereignisse, Quellen-/Kanalledger, DIN-UART/Parser, USB-Protokollparser und den getrennten Enumerationsbuild. Die neue Quellenauswahl ist flüchtig; NVS/Backup bleiben schema 1 und Neustart wählt Web. Phase-1-Parität wird dadurch nicht als abgenommen behandelt. Reale OTraki-Enumeration/Transfers, VBUS, Hotplug und Quellenfehler bleiben zu testen/implementieren. Der Folgebranch baut auf PR #1 auf; Integration per abhängigen PR, kein main-Merge und kein finales Release.

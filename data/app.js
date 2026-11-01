@@ -534,6 +534,96 @@ $("#midiForm").onsubmit = (e) => {
     toast("Kanalfilter gespeichert.");
   });
 };
+let midiInputDirty = false;
+$("#midiInputForm").onchange = () => {
+  midiInputDirty = true;
+  $("#midiRxPin").disabled = $("#midiSource").value !== "din";
+};
+$("#midiInputForm").onsubmit = (event) => {
+  event.preventDefault();
+  run(async () => {
+    const source = $("#midiSource").value;
+    await release();
+    await commandQueue;
+    await api("midi/input", {
+      source,
+      ...(source === "din" ? { rxPin: Number($("#midiRxPin").value) } : {}),
+    });
+    midiInputDirty = false;
+    status = await api("status");
+    renderStatus(status);
+    I18n.text($("#midiInputStatus"), () =>
+      I18n.t("MIDI-Eingang übernommen. Auswahl gilt bis zum Neustart."),
+    );
+  });
+};
+function renderMidiInput(s) {
+  const m = s.midi;
+  $("#applyMidiInput").disabled = !m;
+  $("#midiSource").querySelector('[value="din"]').disabled = !m?.dinSupported;
+  if (!m) return;
+  if (!midiInputDirty) {
+    $("#midiSource").value = m.source;
+    const pins = (s.pins || []).filter((pin) => pin !== s.leds?.pin);
+    const select = $("#midiRxPin");
+    select.replaceChildren(
+      ...pins.map((pin) => {
+        const option = document.createElement("option");
+        option.value = pin;
+        option.textContent = "GPIO " + pin;
+        return option;
+      }),
+    );
+    if (pins.includes(m.rxPin)) select.value = m.rxPin;
+    select.disabled = m.source !== "din";
+  }
+  const list = $("#midiDiagnostics");
+  list.replaceChildren();
+  const probe = s.usbProbe;
+  const probeNames = {
+    disabled: "Deaktiviert",
+    waiting: "Warte auf USB-Gerät",
+    error: "USB-Fehler",
+    disconnected: "USB-Gerät getrennt",
+    "midi1-candidate": "MIDI-1-Schnittstelle erkannt (nur Diagnose)",
+    unsupported: "USB-Gerät nicht unterstützt",
+  };
+  const fields = {
+    Eingangsquelle: m.source === "web" ? "Virtuelle Tastatur" : "DIN · UART",
+    "Letzte Note":
+      m.lastNote >= 0 ? `${noteName(m.lastNote)} · ${m.lastNote}` : "Keine",
+    "MIDI-Aktivität":
+      m.activityAgeMs < 1000 ? "Signal" : "Keine aktuelle Eingabe",
+    "MIDI-Kanal": m.lastChannel || "–",
+    Velocity: m.lastVelocity ?? "–",
+    "Seit letzter Note": m.lastNote >= 0 ? `${m.lastAgeMs} ms` : "–",
+    "MIDI-Ereignisse": m.events,
+    "Gehaltene Noten": m.held,
+    "Kanalfilter verworfen": m.filtered,
+    "DIN-Bytes": m.dinBytes,
+    Parserfehler: m.parserErrors,
+    "UART-Fehler/Überläufe": m.overruns,
+    "Active-Sensing-Ausfälle": m.senseTimeouts,
+    "USB-Diagnose": probe?.available
+      ? probeNames[probe.state] || "USB-Fehler"
+      : "Nicht aktiviert",
+    ...(probe?.vid
+      ? {
+          "USB VID:PID":
+            probe.vid.toString(16).padStart(4, "0") +
+            ":" +
+            probe.pid.toString(16).padStart(4, "0"),
+        }
+      : {}),
+  };
+  for (const [label, value] of Object.entries(fields)) {
+    const dt = document.createElement("dt"),
+      dd = document.createElement("dd");
+    I18n.text(dt, () => I18n.t(label));
+    I18n.text(dd, () => I18n.t(value));
+    list.append(dt, dd);
+  }
+}
 async function scan() {
   $("#scan").disabled = true;
   try {
@@ -717,6 +807,7 @@ $("#reset").onclick = () => {
     });
 };
 function renderStatus(s) {
+  renderMidiInput(s);
   $("#appBoard").textContent = s.board;
   if (!accessDirty) $("#authEnabled").checked = s.authEnabled === true;
   I18n.text($("#appVersion"), () =>
@@ -789,10 +880,12 @@ async function poll() {
       poll,
       libraryBusy
         ? 1200
-        : location.hash === "#training" ||
-            (location.hash === "#dashboard" && animated)
-          ? 180
-          : 2000,
+        : location.hash === "#midi"
+          ? 250
+          : location.hash === "#training" ||
+              (location.hash === "#dashboard" && animated)
+            ? 180
+            : 2000,
     );
   }
 }

@@ -8,7 +8,7 @@
 #include "WiFiManager.h"
 class TrainerWebServer {
  public:
-  TrainerWebServer(ConfigManager& c, WiFiManager& w, LedController& l, SimulatedMidiInput& m,
+  TrainerWebServer(ConfigManager& c, WiFiManager& w, LedController& l, MidiInputs& m,
                    TrainingController& t)
       : config(c), wifi(w), leds(l), midi(m), training(t) {}
   void begin(bool filesystemReady);
@@ -39,7 +39,7 @@ class TrainerWebServer {
   ConfigManager& config;
   WiFiManager& wifi;
   LedController& leds;
-  SimulatedMidiInput& midi;
+  MidiInputs& midi;
   TrainingController& training;
   void trainingStatus();
   void trainingCommand();
