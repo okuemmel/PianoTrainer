@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import zipfile
 import struct
+import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
 def firmware(chip=5, suffix=b''):
@@ -23,6 +24,18 @@ def load(name):
     return module
 
 class BuildTools(unittest.TestCase):
+    def test_usb_probe_is_excluded_from_ota_packaging(self):
+        class Env:
+            def __init__(self, board): self.board = board; self.actions = []
+            def subst(self, key): return str(ROOT) if key == '$PROJECT_DIR' else self.board
+            def GetProjectOption(self, key, default):
+                return 'disabled' if self.board == 's3_usb_probe' else default
+            def AddPostAction(self, path, callback): self.actions.append((path, callback))
+        for board, count in [('s3_usb_probe', 0), ('s3_n16r8', 2), ('c3_supermini', 2)]:
+            env = Env(board)
+            runpy.run_path(str(ROOT/'tools/platformio_update.py'), init_globals={'env': env, 'Import': lambda _: None})
+            self.assertEqual(len(env.actions), count)
+
     def test_embedded_assets_roundtrip_and_rebuild_without_optional_samples(self):
         embedder = load('embed_web')
         with tempfile.TemporaryDirectory() as folder:

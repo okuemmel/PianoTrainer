@@ -3,6 +3,7 @@
 v2 target: user-specified ESP32-S3 DevC-1-N16R8-S3, assumed WROOM-1 N16R8 (16 MB QSPI flash, 8 MB OPI PSRAM). Confirm carrier/module markings before hardware acceptance. Default LED output GPIO 4 remains a candidate pending wiring verification.
 Work on feature branches based on develop/v2. main and v1 tags remain stable; no main merge without explicit user approval.
 Phase 1 is the existing application port. Keep simulation functional without MIDI hardware; real UART/USB MIDI belongs to Phase 2. No USB host implementation on C3.
+Phase 2 preparation is authorized. Keep virtual input as the boot default; DIN must require an explicit free RX pin and optocoupler. s3_usb_probe is enumeration-only, started explicitly via UART command U after VBUS/ports are checked; never advertise USB note reception as implemented. Real USB transfers/hotplug recovery and hardware acceptance remain open.
 Retain c3_supermini as a v1 regression build during migration. Never flash an S3 image to the attached C3. S3 hardware parity requires actual device tests, not a successful build.
 Keep portable mapping/validation in include/TrainerLogic.h and board-specific pins in BoardProfile.h.
 Never log WLAN passwords or return credentials through HTTP. Device access password is displayed only on serial for local commissioning.

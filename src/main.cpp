@@ -2,11 +2,12 @@
 #include <LittleFS.h>
 
 #include "TrainerWebServer.h"
+#include "UsbHostProbe.h"
 ConfigManager config;
 WiFiManager wifi(config);
 LedController leds;
 TrainingController training(leds, config.led);
-SimulatedMidiInput midi(training, config.led);
+MidiInputs midi(training, config.led);
 TrainerWebServer web(config, wifi, leds, midi, training);
 bool ready = false;
 uint32_t heldAt = 0;
@@ -45,11 +46,14 @@ void loop() {
     wifi.loop();
     web.loop();
     midi.loop();
+    usbHostProbeLoop();
     training.loop();
     leds.loop();
     while (Serial.available()) {
       const char command = Serial.read();
-      if (command == 't' || command == 'T') {
+      if (command == 'u' || command == 'U') {
+        usbHostProbeStart();
+      } else if (command == 't' || command == 'T') {
         midi.release();
         training.stop();
         leds.diagnostic();

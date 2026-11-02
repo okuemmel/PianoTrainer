@@ -926,6 +926,34 @@
           <p class="eyebrow">EINGANG & LERNMODI</p>
           <h1>MIDI-Konfiguration</h1>
           <article>
+            <h2>MIDI-Eingang & Diagnose</h2>
+            <form id="midiInputForm">
+              <div class="fields">
+                <label
+                  >Eingangsquelle<select id="midiSource">
+                    <option value="web">Virtuelle Tastatur</option>
+                    <option value="din" disabled>DIN · UART</option>
+                    <option value="usb" disabled>
+                      USB · noch nicht aktiviert
+                    </option>
+                  </select></label
+                >
+                <label
+                  >DIN-RX-GPIO<select id="midiRxPin" disabled></select
+                ></label>
+              </div>
+              <p class="hint">
+                DIN benötigt einen Optokoppler am gewählten RX-Pin. Die Auswahl
+                gilt bis zum Neustart und pausiert eine laufende Übung. Der
+                OTraki-USB-Adapter benötigt den separaten USB-Host; er wird hier
+                noch nicht aktiviert.
+              </p>
+              <button id="applyMidiInput" disabled>Eingang übernehmen</button>
+            </form>
+            <p id="midiInputStatus" class="hint" role="status"></p>
+            <dl id="midiDiagnostics" class="info"></dl>
+          </article>
+          <article>
             <span class="badge">MIDI · Simulation</span>
             <h2>Virtuelle Tastatur</h2>
             <p>

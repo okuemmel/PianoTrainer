@@ -9,6 +9,7 @@ dist/*
 !dist/v1.12.3/
 !dist/v1.15.1/
 !dist/v2.0.0-alpha.1/
+!dist/v2.0.0-alpha.2/
 data/i18n/*.json.gz
 .DS_Store
 .env
