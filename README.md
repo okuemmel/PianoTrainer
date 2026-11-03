@@ -16,7 +16,7 @@ Dieses Projekt ist **vibe coded**: Es entsteht im Dialog mit einem KI-Coding-Age
 | **v2: 2.0.0-alpha.2** | ESP32-S3-WROOM-1-N16R8, 16 MiB Flash / 8 MiB PSRAM | [Entwicklungsdateien](dist/v2.0.0-alpha.2/README.md) · [S3-Installation](dist/v2.0.0-alpha.2/s3_n16r8/INSTALLATION.md) |
 | **C3-Regressionsbuild der v2** | ESP32-C3 SuperMini | [Separate C3-Dateien](dist/v2.0.0-alpha.2/c3_supermini/INSTALLATION.md), auch als Hilfe für den Browserdatenumzug |
 
-Stand 1. November 2026: Der S3-Port und die vorgezogene MIDI-Vorbereitung sind gebaut und automatisiert getestet. **Das S3-Board ist noch im Zulauf; die reale Hardwareabnahme steht aus.** USB-MIDI empfängt noch keine Noten. Der getrennte USB-Probelauf ist für die spätere Geräteerkennung vorgesehen. Ein finales v2.0.0-Release gibt es noch nicht.
+Stand 2. November 2026: Der S3-Port und die MIDI-Eingänge sind gebaut. Der OTraki-Adapter wurde am S3 als USB-MIDI-1.0-Gerät (FC02:0101) erkannt; der Empfang einer echten Keyboard-Note und die Reaktion der zugeordneten LED sind bestätigt. Note-Off-Freigabe, Akkorde und Hotplug müssen noch geprüft werden. Ein finales v2.0.0-Release gibt es noch nicht.
 
 Die Entwicklung erfolgt für `develop/v2`, derzeit in [PR #1: S3-Port](https://github.com/okuemmel/PianoTrainer/pull/1) und [PR #2: MIDI-Vorbereitung](https://github.com/okuemmel/PianoTrainer/pull/2). Der aktuelle Implementierungsbranch ist `feature/v2-midi-inputs`; `main` enthält die stabile v1.
 
@@ -41,12 +41,12 @@ Unter **LEDs · Aufbau & Test → Streifen & Tastatur** den Tastaturumfang wähl
 
 | Tasten | Bereich | MIDI-Noten |
 |---|---|---|
-| 49 | C3–C7 | 48–96 |
+| 49 | C2–C6 | 36–84 |
 | 61 | C2–C7 | 36–96 |
 | 76 | E1–G7 | 28–103 |
 | 88 | A0–C8 | 21–108 |
 
-Eigene Bereiche sind ebenfalls möglich. Die **physische LED-Anzahl separat** passend zum Streifen einstellen. Die Zuordnungstabelle enthält 128 Einträge: `-1` deaktiviert eine Note, sonst gilt `erste LED + Tabellenwert`; bei umgekehrtem Streifen wird der Index anschließend gespiegelt. Mehrere Noten können dieselbe LED verwenden. Unzugeordnete Tasten werden angezeigt.
+Eigene Bereiche sind ebenfalls möglich. Die **physische LED-Anzahl separat** passend zum Streifen einstellen. Bei mehr LEDs als Tasten verteilt **Fortlaufend zuordnen** die Tastenmittelpunkte gleichmäßig über den gesamten Streifen; die LEDs zwischen zwei Mittelpunkten leuchten mit der nächstgelegenen Taste. Für 82 LEDs und 49 Tasten werden so je Taste ein oder zwei Pixel genutzt. Die virtuelle Leiste zeigt weiterhin eine Markierung pro Taste. Die Zuordnungstabelle enthält 128 Einträge: `-1` deaktiviert eine Note, sonst gilt `erste LED + Tabellenwert`; bei umgekehrtem Streifen wird der Index anschließend gespiegelt. Mehrere Noten können dieselbe LED verwenden. Unzugeordnete Tasten werden angezeigt.
 
 ### Üben, anhören und vorauslesen
 
@@ -105,7 +105,7 @@ flowchart TB
 
 `MidiInputs` und `MidiRouter` normalisieren Eingaben, bevor dieselbe bestehende Lernengine sie auswertet. Das feste Ledger unterscheidet Quelle, Kanal und Note: Ein Note-Off einer Quelle löscht keine noch gehaltene Note einer anderen. Im normalen Build ist zunächst **eine Quelle ausgewählt**, nach Neustart immer die virtuelle Tastatur. Der S3-DIN-Eingang ist optional; Parser und Treiber sind gebaut, aber noch nicht am Instrument geprüft.
 
-Lernzustand und LED-Ansteuerung werden weiterhin im Arduino-Hauptloop verändert. `RemoteLibrary` verarbeitet Netzwerkjobs getrennt. Der USB-Probelauf hat einen SDK-Daemon; seine Client-Ereignisse werden im Loop bearbeitet. **Er übergibt noch keine USB-Noten an den Router.**
+Lernzustand und LED-Ansteuerung werden weiterhin im Arduino-Hauptloop verändert. `RemoteLibrary` verarbeitet Netzwerkjobs getrennt. Der USB-Host hat einen SDK-Daemon; USB-Client- und Transfercallbacks werden im Loop bearbeitet und liefern dort MIDI-Noten an den bestehenden Eingangsrouter.
 
 Der Dateiplayer verwendet aktuell die AudioContext-Uhr im Browser, die Lernengine die Gerätezeit. Falling Notes folgt jeweils der aktiven Quelle; Playback-LEDs werden über HTTP gespiegelt. Die gemeinsame S3-Transportuhr und eine vom WLAN unabhängige Playback-/LED-Synchronisation sind noch geplante Schritte.
 
@@ -156,9 +156,9 @@ Ein WS2812B-Streifen leuchtet durch Versorgung allein nicht automatisch; er ben�
 |---|---|
 | **Virtuelle Tastatur** | Standard nach jedem Neustart; funktioniert auch ohne angeschlossenes Instrument |
 | **DIN über UART** | S3-only, opt-in unter MIDI-Konfiguration mit ausdrücklich gewähltem freien RX-GPIO und separater Optokopplerschaltung; Auswahl gilt bis Neustart und pausiert laufendes Training |
-| **OTraki DIN/USB-Konverter** | Vorgesehener USB-MIDI-Eingang. Zunächst Geräte-/Deskriptorprüfung im separaten Probelauf; USB-Notenempfang und Kompatibilität noch offen |
+| **OTraki DIN/USB-Konverter** | Am S3 als USB-MIDI-1.0-Gerät FC02:0101 erkannt. Bulk-IN-Empfänger eingebaut; eine echte Note muss noch mit Keyboard und LED geprüft werden |
 
-Geplanter USB-Anschluss: **Keyboard MIDI OUT → OTraki MIDI IN → geprüfter USB-Hostanschluss des S3**. Der OTraki wird nicht direkt an den UART-RX-Pin angeschlossen. Zwei USB-C-Buchsen belegen weder ihre Rollen noch eine geeignete Hostversorgung; Zuordnung, VBUS und Debugpfad werden vor dem Hardwareversuch geprüft. Der Diagnosebuild `s3_usb_probe` verwendet die UART-Konsole, startet Enumeration erst nach `U` und erstellt keine OTA-Pakete. [Probelauf und weitere Integrationsschritte](docs/V2_MIDI_PREPARATION.md#usb-stack-entscheidung-und-separater-probelauf).
+USB-Anschluss: **Keyboard MIDI OUT → OTraki MIDI IN → USB-OTG-Port des S3**. Der OTraki wird nicht direkt an den UART-RX-Pin angeschlossen. Auf dem verwendeten Board war die USB-OTG-Brücke zunächst offen; nach dem Schließen wurde der Adapter erkannt. Das normale S3-Profil deaktiviert USB-CDC beim Boot, damit USB-Host den nativen PHY verwenden kann; die Konsole läuft über UART. Der separate Diagnosebuild bleibt für Hardwarediagnose verfügbar und erstellt keine OTA-Pakete. [USB-Host-Integration und bekannte Grenzen](docs/V2_MIDI_PREPARATION.md#usb-stack-entscheidung-und-separater-probelauf).
 
 ## Bauen und einrichten
 

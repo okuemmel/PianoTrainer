@@ -4,15 +4,24 @@
 
 #include "BoardProfile.h"
 
+inline int ledOffsetForKey(int keyOffset, int keys, int available) {
+  if (keyOffset < 0 || keyOffset >= keys || available <= 0) return -1;
+  if (available >= keys && keys > 1)
+    return (keyOffset * (available - 1) + (keys - 1) / 2) / (keys - 1);
+  return keyOffset < available ? keyOffset : -1;
+}
+
 struct LedConfig {
-  int count = 60, pin = 4, brightness = 25, first = 0, keys = 49, baseNote = 48;
+  int count = 60, pin = 4, brightness = 25, first = 0, keys = 49, baseNote = 36;
   bool reversed = false, rgb = false;
   int channel = 0;  // 0 = all, otherwise 1..16
   // Logical offsets from first; -1 disables the note. Reversal is applied last.
   std::array<int, 128> mapping;
   LedConfig() {
     mapping.fill(-1);
-    for (int i = 0; i < keys; ++i) mapping[baseNote + i] = i;
+    const int available = count - first;
+    for (int i = 0; i < keys; ++i)
+      mapping[baseNote + i] = ledOffsetForKey(i, keys, available);
   }
 };
 inline const char* validate(const LedConfig& c) {
@@ -33,6 +42,21 @@ inline int ledForNote(const LedConfig& c, int note) {
   int index = c.first + c.mapping[note];
   if (index >= c.count) return -1;
   return c.reversed ? c.count - 1 - index : index;
+}
+inline int nearestMappedLedCenter(const LedConfig& c, int led) {
+  int nearestCenter = -1, nearestDistance = 1000000;
+  for (int note = 0; note < 128; ++note) {
+    const int center = ledForNote(c, note);
+    if (center < 0) continue;
+    const int difference = center - led;
+    const int distance = difference < 0 ? -difference : difference;
+    if (distance < nearestDistance ||
+        (distance == nearestDistance && (nearestCenter < 0 || center < nearestCenter))) {
+      nearestDistance = distance;
+      nearestCenter = center;
+    }
+  }
+  return nearestCenter;
 }
 inline bool acceptsChannel(const LedConfig& c, int channel) {
   return channel >= 1 && channel <= 16 && (c.channel == 0 || c.channel == channel);

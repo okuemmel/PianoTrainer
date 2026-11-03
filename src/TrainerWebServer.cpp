@@ -359,14 +359,26 @@ void TrainerWebServer::begin(bool filesystemReady) {
       return;
     }
     const String source = doc["source"] | "";
-    if ((source != "web" && source != "din") || (source == "din" && !doc["rxPin"].is<int>())) {
+    if ((source != "web" && source != "din" && source != "usb") ||
+        (source == "din" && !doc["rxPin"].is<int>())) {
       error(400, "MIDI-Eingang oder RX-Pin ungültig.");
       return;
     }
     String message;
-    if (!midi.configure(source == "din" ? MidiSource::Din : MidiSource::Web, doc["rxPin"] | -1,
-                        message)) {
+    const auto target = source == "din" ? MidiSource::Din
+                        : source == "usb" ? MidiSource::Usb
+                                           : MidiSource::Web;
+    const MidiSource previousSource = midi.selected;
+    const int previousPin = midi.rxPin;
+    if (!midi.configure(target, doc["rxPin"] | -1, message)) {
       error(400, message);
+      return;
+    }
+    const int targetPin = target == MidiSource::Din ? doc["rxPin"].as<int>() : -1;
+    if (!config.saveMidiInput(target, targetPin)) {
+      String ignored;
+      midi.configure(previousSource, previousPin, ignored);
+      error(500, "MIDI-Eingang konnte nicht dauerhaft gespeichert werden.");
       return;
     }
     StaticJsonDocument<1024> result;

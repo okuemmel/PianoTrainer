@@ -18,10 +18,12 @@ class MidiInputs {
   int rxPin = -1;
   uint32_t dinBytes = 0, overruns = 0, senseTimeouts = 0;
   bool configure(MidiSource source, int pin, String& error) {
+#if !defined(TRAINER_USB_HOST)
     if (source == MidiSource::Usb) {
       error = "USB-MIDI-Host ist noch nicht aktiviert.";
       return false;
     }
+#endif
     if (source == MidiSource::Din) {
 #if defined(TRAINER_BOARD_S3_N16R8)
       if (!BoardProfile::validLedPin(pin) || pin == config.pin) {
@@ -59,6 +61,9 @@ class MidiInputs {
       selected = source;
     }
 #endif
+#if defined(TRAINER_USB_HOST)
+    if (source == MidiSource::Usb) selected = source;
+#endif
     return true;
   }
   void receive(MidiEvent event) {
@@ -76,6 +81,15 @@ class MidiInputs {
                    [this](const MidiEvent& e) { training.receive(e); });
     active = training.engine.running();
     last = millis();
+  }
+  void releaseSource(MidiSource source) {
+    router.release(source, esp_timer_get_time(),
+                   [this](const MidiEvent& e) { training.receive(e); });
+    if (selected == source) {
+      active = training.engine.running();
+      if (source != MidiSource::Web) training.pause();
+      last = millis();
+    }
   }
   void release() {
     router.clear();
@@ -135,7 +149,11 @@ class MidiInputs {
 #else
     object["dinSupported"] = false;
 #endif
+#if defined(TRAINER_USB_HOST)
+    object["usbSupported"] = true;
+#else
     object["usbSupported"] = false;
+#endif
     object["events"] = router.received;
     object["filtered"] = router.filtered;
     object["rejected"] = router.rejected;

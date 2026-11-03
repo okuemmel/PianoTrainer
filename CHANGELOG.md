@@ -2,13 +2,22 @@
 
 Wird bei sichtbaren Änderungen im selben Commit mitgepflegt. Versionen stammen aus `include/AppInfo.h`; ältere Einträge wurden aus Git übernommen.
 
-## 2.0.0-alpha.2 · 2026-11-01
+## 2.0.0-alpha.2 · 2026-11-03
 
+- MIDI-Eingangsquelle und DIN-RX-Pin dauerhaft speichern und beim Start wiederherstellen; bei einem NVS-Speicherfehler die Auswahl zurückrollen.
+- USB-MIDI- und DIN-Auswahl in der Oberfläche als gespeichert kennzeichnen und die Neustartwiederherstellung erklären.
+- Automatisches LED-Mapping über alle physischen Pixel verteilen, wenn mehr LEDs als Tasten vorhanden sind; alle einer Taste zugeordneten LEDs gemeinsam ansteuern.
+- USB-Host-Transfers beim Geräteabziehen sicher aufräumen und den Empfangszustand samt Paketdiagnose ausweisen.
 - README auf den aktuellen v2-Stand ausrichten: Funktionen, Einrichtung, getrennte Downloads, Backup/Migration und MIDI-Grenzen neu ordnen. Implementierte Architektur und geplante gemeinsame Transport-/Echtzeitarchitektur mit Mermaid zeigen; Referenzinventar und aktuellen Komponenten-/Ausführungskontext in der Architekturdokumentation klar trennen. Überholte Angaben zu LittleFS-Pflicht, permanenter Anmeldung, WLAN-Sendeleistungsgrenze und temporären Uploaddateien berichtigen.
 - Phase 2 vor Ankunft der Hardware vorbereiten: gemeinsame typisierte MIDI-Ereignisse mit Empfangszeit/Quelle, begrenzte Quellen-/Kanalverwaltung und derselbe bestehende Lernpfad für virtuelle und vorbereitete Hardwareeingaben.
 - MIDI-1.0-Byteparser mit Running Status, Velocity-0-Note-Off, CC120/123, Realtime/System-Common und begrenzter SysEx-Behandlung ergänzen. S3-DIN-UART optional mit ausdrücklich gewähltem RX-Pin, Fehlerbereinigung und Active-Sensing-Wächter vorbereiten; Standard bleibt virtuelle Eingabe, Auswahl nur bis Neustart.
 - DE/EN-Eingangsauswahl und MIDI-Diagnose ergänzen; Web-Release und Heartbeat auf die Webquelle begrenzen, LED-/RX-Pinkonflikte abweisen und virtuelle Noten bei gewähltem DIN-Eingang klar ablehnen.
 - USB-MIDI-1.0-Paket-/Deskriptorparser und separaten `s3_usb_probe`-Build mit manuell gestartetem ESP-IDF-Host zur Enumeration ergänzen. Der Probe-Build erzeugt keine OTA-Pakete und empfängt noch keine USB-Noten; OTraki-Kompatibilität, Bulk-Transfers, VBUS und Hardwareabnahme bleiben offen.
+- Nach Prüfung der OTG-Brücke den OTraki als FC02:0101 am S3 enumerieren. Im regulären S3-Profil asynchrone MIDI-1.0-Bulk-IN-Transfers und die USB-Eingangsquelle ergänzen; reale Noten-/LED-Abnahme steht noch aus.
+- Ersten Hardwaretest am ESP32-S3 mit OTraki bestehen: eine Keyboard-Note wird empfangen und die zugeordnete LED reagiert. Note-Off-/Freigabe-, Akkord- und Hotplugtests bleiben offen.
+- 49-Tasten-Profil auf den gemeldeten Bereich C2–C6 (MIDI 36–84) korrigieren; neues Standardmapping beginnt damit beim tiefen C statt C3.
+- Automatische LED-Zentren bei mehr LEDs als Tasten über den Streifen verteilen und benachbarte Pixel mit der nächstgelegenen Note rendern; virtuelle Tastatur bleibt eine LED-Markierung pro Taste.
+- Browser- und native Prüfungen für die 82-LED-/49-Tastenverteilung ergänzen.
 
 ## 2.0.0-alpha.1 · 2026-11-01
 

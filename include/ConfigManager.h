@@ -6,6 +6,7 @@
 #include "LessonCatalog.h"
 #include "LessonProgress.h"
 #include "LibrarySettings.h"
+#include "MidiTypes.h"
 #include "NetworkSettings.h"
 #include "TrainerLogic.h"
 class ConfigManager {
@@ -15,6 +16,8 @@ class ConfigManager {
   String ssid, wifiPassword, accessPassword;
   bool authEnabled = false;
   String hostname = "midi-trainer";
+  MidiSource midiSource = MidiSource::Web;
+  int midiRxPin = -1;
   std::array<LessonResult, LessonCount> lessonResults{};
   bool saveLessonResult(size_t index, int accuracy);
   bool resetLessonProgress();
@@ -26,6 +29,7 @@ class ConfigManager {
   bool saveHostname(const String& name);
   bool saveAccessPassword(const String& password);
   bool saveAuthEnabled(bool enabled);
+  bool saveMidiInput(MidiSource source, int rxPin);
   bool reset();
   static void encode(JsonObject obj, const LedConfig& c);
   static bool decode(JsonObjectConst obj, LedConfig& c, String& error);

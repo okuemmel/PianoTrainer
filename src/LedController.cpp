@@ -84,11 +84,14 @@ void LedController::note(int n, int velocity) {
 }
 void LedController::renderNotes() {
   pixels.clear();
-  // Multiple notes may map to one LED; use the strongest active velocity.
+  // Assign every pixel to its nearest mapped key center. With more pixels than
+  // keys, a key therefore illuminates its complete one- or two-pixel segment.
   for (int i = 0; i < config.count; ++i) {
+    const int center = nearestMappedLedCenter(config, i);
+    if (center < 0) continue;
     int v = 0;
     for (int n = 0; n < 128; ++n)
-      if (ledForNote(config, n) == i && notes[n] > v) v = notes[n];
+      if (ledForNote(config, n) == center) v = max(v, int(notes[n]));
     if (v) pixels.setPixelColor(i, 0, v * 2, v);
   }
   pixels.show();
@@ -139,9 +142,11 @@ void LedController::trainingFrame(const std::array<uint8_t, 128>& played,
   pixels.setBrightness(config.brightness * 255 / 100);
   pixels.clear();
   for (int i = 0; i < config.count; ++i) {
+    const int center = nearestMappedLedCenter(config, i);
+    if (center < 0) continue;
     int r = 0, g = 0, b = 0;
     for (int n = 0; n < 128; ++n)
-      if (ledForNote(config, n) == i) {
+      if (ledForNote(config, n) == center) {
         if (targets[n]) {
           g = max(g, pulse ? 100 : 35);
           b = max(b, pulse ? 255 : 150);

@@ -406,8 +406,15 @@ $("#autoMap").onclick = () => {
   document.querySelectorAll("[data-note]").forEach((input) => {
     const n = Number(input.dataset.note),
       offset = n - base;
+    const available = count - first;
+    const ledOffset =
+      available >= keys && keys > 1
+        ? Math.floor((offset * (available - 1) + (keys - 1) / 2) / (keys - 1))
+        : offset;
     input.value =
-      offset >= 0 && offset < keys && first + offset < count ? offset : -1;
+      offset >= 0 && offset < keys && first + ledOffset < count
+        ? ledOffset
+        : -1;
     input.max = count - first - 1;
   });
   toast("Zuordnung vorbereitet. Zum Übernehmen speichern.");
@@ -553,7 +560,7 @@ $("#midiInputForm").onsubmit = (event) => {
     status = await api("status");
     renderStatus(status);
     I18n.text($("#midiInputStatus"), () =>
-      I18n.t("MIDI-Eingang übernommen. Auswahl gilt bis zum Neustart."),
+      I18n.t("MIDI-Eingang gespeichert und übernommen."),
     );
   });
 };
@@ -561,6 +568,7 @@ function renderMidiInput(s) {
   const m = s.midi;
   $("#applyMidiInput").disabled = !m;
   $("#midiSource").querySelector('[value="din"]').disabled = !m?.dinSupported;
+  $("#midiSource").querySelector('[value="usb"]').disabled = !m?.usbSupported;
   if (!m) return;
   if (!midiInputDirty) {
     $("#midiSource").value = m.source;
@@ -586,10 +594,16 @@ function renderMidiInput(s) {
     error: "USB-Fehler",
     disconnected: "USB-Gerät getrennt",
     "midi1-candidate": "MIDI-1-Schnittstelle erkannt (nur Diagnose)",
+    receiving: "USB-MIDI-Empfang aktiv",
     unsupported: "USB-Gerät nicht unterstützt",
   };
   const fields = {
-    Eingangsquelle: m.source === "web" ? "Virtuelle Tastatur" : "DIN · UART",
+    Eingangsquelle:
+      m.source === "web"
+        ? "Virtuelle Tastatur"
+        : m.source === "usb"
+          ? "USB · MIDI"
+          : "DIN · UART",
     "Letzte Note":
       m.lastNote >= 0 ? `${noteName(m.lastNote)} · ${m.lastNote}` : "Keine",
     "MIDI-Aktivität":
@@ -607,6 +621,7 @@ function renderMidiInput(s) {
     "USB-Diagnose": probe?.available
       ? probeNames[probe.state] || "USB-Fehler"
       : "Nicht aktiviert",
+    ...(probe?.receivesMidi ? { "USB-Pakete empfangen": probe.rxPackets } : {}),
     ...(probe?.vid
       ? {
           "USB VID:PID":

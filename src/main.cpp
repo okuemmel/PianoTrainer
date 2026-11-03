@@ -31,6 +31,15 @@ void setup() {
     Serial.println("LED-Initialisierung fehlgeschlagen.");
     return;
   }
+  String midiError;
+  if (!midi.configure(config.midiSource, config.midiRxPin, midiError)) {
+    Serial.printf("Gespeicherter MIDI-Eingang konnte nicht gestartet werden: %s\n",
+                  midiError.c_str());
+    config.saveMidiInput(MidiSource::Web, -1);
+  } else {
+    Serial.printf("Gespeicherter MIDI-Eingang aktiviert: %s\n",
+                  midiSourceName(config.midiSource));
+  }
   // The partition label must match partitions.csv; the core defaults to "spiffs".
   bool fs = LittleFS.begin(false, "/littlefs", 10, "littlefs");
   if (!fs)
@@ -40,6 +49,11 @@ void setup() {
   wifi.begin();
   web.begin(fs);
   ready = true;
+#if defined(TRAINER_USB_HOST)
+  usbHostProbeStart(&midi);
+#elif defined(TRAINER_USB_HOST_PROBE_AUTO)
+  usbHostProbeStart(&midi);
+#endif
 }
 void loop() {
   if (ready) {
@@ -52,7 +66,7 @@ void loop() {
     while (Serial.available()) {
       const char command = Serial.read();
       if (command == 'u' || command == 'U') {
-        usbHostProbeStart();
+        usbHostProbeStart(&midi);
       } else if (command == 't' || command == 'T') {
         midi.release();
         training.stop();

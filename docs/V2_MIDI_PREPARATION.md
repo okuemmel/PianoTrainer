@@ -1,6 +1,6 @@
 # Phase 2 · MIDI-Vorbereitung · 2.0.0-alpha.2
 
-Stand: 1. November 2026. Nutzerfreigabe: „dannlos“ nach Besprechung der vorgezogenen Phase-2-Vorbereitung. Aufbau auf dem noch nicht hardwareabgenommenen S3-Port aus PR #1. Das Board WROOM-1-N16R8 ist weiterhin im Zulauf. **Keine Uploads oder realen MIDI-/USB-/Latenztests durchgeführt.**
+Stand: 2. November 2026. Das ESP32-S3 WROOM-1-N16R8 ist angeschlossen; die USB-OTG-Brücke wurde geschlossen. OTraki wurde als Full-Speed USB-MIDI-Gerät FC02:0101 enumeriert. Regulärer S3-Build mit USB-MIDI-Bulk-IN-Empfang ist gebaut und übertragen. Ein echter Tastenanschlag wurde empfangen und die zugeordnete LED reagierte. Note-Off-Freigabe, Akkorde, Hotplug und Latenzmessung bleiben offen.
 
 ## Implementierter Umfang
 
@@ -11,9 +11,9 @@ Stand: 1. November 2026. Nutzerfreigabe: „dannlos“ nach Besprechung der vorg
 | Byteparser | `MidiByteParser.h`: MIDI-1.0-Kanalnachrichten, Running Status, Velocity 0 als Off, CC120/123, Realtime/Active Sensing/Reset, SysEx ohne Datenablage, System-Common-Längen, fehlerhafte/unvollständige Sequenzen | 10.000 On/Off-Paare ohne zurückbleibende Noten im Hosttest; **keine Hardware-Durchsatzmessung** |
 | DIN-UART | `MidiInput.h`: S3-UART1, 31.250 Baud, 8N1, 2.048-B-RX-Puffer, Ereignisqueue 8, höchstens 128 Bytes und 8 UART-Ereignisse pro Loop | S3-Compiler-/Linknachweis; elektrischer Empfang, Fehlerereignisse und Laufzeit noch offen |
 | Empfangsfehler | UART-Overflow/Framing/Parity/Break: Puffer leeren, Parser und DIN-Anteil zurücksetzen; Active Sensing ab erstem FE, nach >300 ms ohne MIDI-Bytes DIN-Anteil freigeben | Parser/Router portabel getestet; UART-Fehler-/Watchdogintegration muss real geprüft werden |
-| USB-Pakete | `UsbMidiProtocol.h`: begrenzte 4-Byte-USB-MIDI-1.0-Pakete, CIN-/Status-/Datenvalidierung, SysEx-Kontext, Kabel 0; andere Kabel gezählt und verworfen | native Paket-/Fehler-/SysEx-Tests; noch **nicht** an USB-Transfers angeschlossen |
+| USB-Pakete und Host | `UsbMidiProtocol.h` plus ESP-IDF Host: begrenzte 4-Byte-USB-MIDI-1.0-Pakete, Kabel 0, asynchrone Bulk-IN-Transfers; Ereignisse laufen im Arduino-Loop in den vorhandenen Router | S3-Build erfolgreich; echter Note-On und LED-Reaktion bestätigt. Note-Off und Disconnect-Freigabe bleiben zu prüfen |
 | USB-Deskriptoren | Konfiguration bis 4 KiB, MIDIStreaming 1.0, Alternate 0, ein Bulk-IN-Endpunkt mit max. 64 B und einem eingebetteten MIDI-OUT-Jack; Grenzen/IDs validieren | künstliche gültige/beschädigte Deskriptoren inklusive Composite-Schnittstellen; kein Beweis für OTraki-Kompatibilität |
-| Diagnose/UI | DE/EN: aktuelle Quelle, letzte Note/Kanal/Velocity/Alter, Aktivität, gehaltene Töne, Ereignis-/Filter-/Parser-/UART-/Sensingzähler; optionale USB-VID/PID und Probezustand | jsdom mit vorhandener UI/Training/Player/Backup und Sprachwechsel; kein Echtzeit-/FPS-Nachweis |
+| Diagnose/UI | DE/EN: USB-Eingang wählbar, USB-Host-/Paketstatus und vorhandene Noten-/Kanal-/Velocitydiagnose | USB im Browser ausgewählt; Diagnose zeigt empfangene Note. Kein Latenz-/Durchsatznachweis |
 
 Im laufenden Produktbuild wird **eine Quelle ausgewählt**, standardmäßig Web. Die Routerlogik ist bereits für mehrere Quellen vorbereitet; gleichzeitige Hardwarequellen und Gerätegenerationen werden erst mit der USB-Empfangsintegration freigegeben. Die Lernengine bleibt quellunabhängig. Zehnnotige freie Akkorde sind im Router unterstützt; die bestehenden Übungssequenzen behalten ihr **8-Noten-Limit** bis zur geplanten gemeinsamen Erweiterung.
 
@@ -39,7 +39,7 @@ GPIO 5 ist **nur ein JSON-Beispiel**, keine festgelegte Verdrahtung. Gesperrte/b
 
 Die virtuelle `/api/midi`-Route und ihr Format bleiben bestehen. Im Webmodus entspricht sie dem bisherigen Verhalten. Im DIN-Modus werden virtuelle Noten ausdrücklich mit 409 abgelehnt; `release` befreit ausschließlich Webnoten, ein virtueller Heartbeatausfall kann dann keine Hardwarequelle loslassen oder pausieren. Explizite globale Bedienaktionen wie Pause, Stop, LED-Test und Sitzungsübernahme behalten ihre bisherigen Wartungs-/Freigaberegeln.
 
-## USB-Stack-Entscheidung und separater Probelauf
+## USB-Stack-Entscheidung und Hardwarestand
 
 Die gepinnte Arduino-2.0.17-/IDF-4.4.7-Installation enthält die öffentliche USB-Host-API, Header und `libusb.a` bereits. Der separate Build **`s3_usb_probe`** bindet `usb_host_install`, Clientregistrierung, Ereignisverarbeitung, Gerät öffnen/schließen und Lesen von Gerät-/Konfigurationsdeskriptoren erfolgreich ein. Daher wird vorerst **ESP-IDF Host Library + eigener schmaler MIDI-1.0-Empfangstreiber** vorbereitet; kein SDK-Wechsel und kein zweiter USB-Stack in diesem Schritt.
 
@@ -64,6 +64,10 @@ Der Probe-Build fordert kein Interface an und überträgt keine MIDI-Daten. Er b
 5. Reale UART-/USB-/Optokoppler-/LED-/WLAN-/Browser- und Auth-/Sessionregressionen, Active-Sensing-Ausfälle, Hotplug und Langlauf ausführen. Die offene Phase-1-Hardwareabnahme läuft parallel weiter. Messungen/Tasks/Single-Owner-Ausbau und gemeinsame musikalische Zeit bleiben Phase 3/4.
 
 Die unten bzw. im [Testplan](V2_TEST_PLAN.md) verzeichneten Hosttests schließen keinen dieser Hardwarefälle. Phase 2 insgesamt ist **noch nicht abgeschlossen**.
+
+## Hardwareupdate vom 2. November 2026
+
+Die USB-OTG-Brücke des angeschlossenen DevC-1 wurde geschlossen. Der OTraki wurde als FC02:0101 am S3 erkannt; der reguläre Firmwarebuild startet jetzt asynchrone USB-MIDI-1.0-Bulk-IN-Transfers und bietet USB als MIDI-Quelle an. Ein echter Tastenanschlag kommt an und schaltet die zugeordnete LED. Note-Off-Freigabe und Hotplug-Abnahme stehen aus. Die nachfolgenden historischen Vorbereitungsnotizen zu später zu implementierenden Empfangsteilen sind durch diesen Stand überholt.
 
 ## Automatisierter Prüfstand
 

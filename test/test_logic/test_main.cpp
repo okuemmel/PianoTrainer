@@ -11,11 +11,29 @@ void tearDown() {}
 void defaults_valid() {
   LedConfig c;
   TEST_ASSERT_NULL(validate(c));
-  TEST_ASSERT_EQUAL(0, ledForNote(c, 48));
-  TEST_ASSERT_EQUAL(48, ledForNote(c, 96));
-  TEST_ASSERT_EQUAL(-1, ledForNote(c, 47));
+  TEST_ASSERT_EQUAL(0, ledForNote(c, 36));
+  TEST_ASSERT_EQUAL(59, ledForNote(c, 84));
+  TEST_ASSERT_EQUAL(-1, ledForNote(c, 35));
   TEST_ASSERT_EQUAL(-1, ledForNote(c, 128));
   TEST_ASSERT_EQUAL(-1, ledForNote(c, -1));
+}
+void auto_mapping_spreads_all_pixels_across_keys() {
+  LedConfig c;
+  c.count = 82;
+  c.keys = 49;
+  c.baseNote = 36;
+  c.mapping.fill(-1);
+  for (int key = 0; key < c.keys; ++key)
+    c.mapping[c.baseNote + key] = ledOffsetForKey(key, c.keys, c.count - c.first);
+  TEST_ASSERT_EQUAL(0, ledForNote(c, 36));
+  TEST_ASSERT_EQUAL(81, ledForNote(c, 84));
+  for (int note = 36; note <= 84; ++note) {
+    int assigned = 0;
+    for (int led = 0; led < c.count; ++led) {
+      if (nearestMappedLedCenter(c, led) == ledForNote(c, note)) ++assigned;
+    }
+    TEST_ASSERT_TRUE(assigned == 1 || assigned == 2);
+  }
 }
 void gpio_allowlist() {
   LedConfig c;
@@ -62,6 +80,7 @@ void boundaries() {
 }
 void mapping_validation() {
   LedConfig c;
+  c.mapping.fill(-1);
   c.mapping[0] = -2;
   TEST_ASSERT_NOT_NULL(validate(c));
   c.mapping[0] = 60;
@@ -79,8 +98,11 @@ void reversal_property() {
     c.count = size;
     for (int first = 0; first <= size - 49; ++first) {
       c.first = first;
+      c.mapping.fill(-1);
+      for (int key = 0; key < c.keys; ++key)
+        c.mapping[c.baseNote + key] = ledOffsetForKey(key, c.keys, c.count - c.first);
       TEST_ASSERT_NULL(validate(c));
-      for (int n = 48; n <= 96; ++n) {
+      for (int n = 36; n <= 84; ++n) {
         c.reversed = false;
         int normal = ledForNote(c, n);
         c.reversed = true;
@@ -94,6 +116,7 @@ void reversal_property() {
 }
 void custom_mapping() {
   LedConfig c;
+  c.mapping.fill(-1);
   c.first = 4;
   c.mapping[48] = 10;
   c.mapping[49] = 10;
@@ -166,6 +189,7 @@ int main() {
   RUN_TEST(library_paths);
   RUN_TEST(hostname_boundaries);
   RUN_TEST(defaults_valid);
+  RUN_TEST(auto_mapping_spreads_all_pixels_across_keys);
   RUN_TEST(gpio_allowlist);
   RUN_TEST(boundaries);
   RUN_TEST(mapping_validation);

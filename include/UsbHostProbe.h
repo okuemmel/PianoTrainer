@@ -1,6 +1,7 @@
 #pragma once
 #include <ArduinoJson.h>
-// Enumeration-only diagnostic build. No transfer submissions or VBUS GPIO guessing.
-void usbHostProbeStart();
+// USB MIDI host service (normal S3 build); probe-only builds may omit MidiInputs.
+class MidiInputs;
+void usbHostProbeStart(MidiInputs* midi = nullptr);
 void usbHostProbeLoop();
 void usbHostProbeStatus(JsonObject object);

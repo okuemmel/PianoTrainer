@@ -66,6 +66,13 @@ bool ConfigManager::begin() {
     hostname = storedHostname;
   accessPassword = prefs.getString("access", "admin");
   authEnabled = prefs.getBool("auth-enabled", false);
+  DynamicJsonDocument midiInput(128);
+  if (!deserializeJson(midiInput, prefs.getString("midi-input", "{}"))) {
+    const String source = midiInput["source"] | "web";
+    midiSource = source == "din" ? MidiSource::Din : source == "usb" ? MidiSource::Usb
+                                                                  : MidiSource::Web;
+    midiRxPin = midiInput["rxPin"] | -1;
+  }
   DynamicJsonDocument network(512);
   if (!deserializeJson(network, prefs.getString("network", "{}"))) {
     ssid = network["ssid"] | "";
@@ -281,6 +288,17 @@ bool ConfigManager::saveAccessPassword(const String& password) {
 bool ConfigManager::saveAuthEnabled(bool enabled) {
   if (!prefs.putBool("auth-enabled", enabled)) return false;
   authEnabled = enabled;
+  return true;
+}
+bool ConfigManager::saveMidiInput(MidiSource source, int rxPin) {
+  DynamicJsonDocument doc(128);
+  doc["source"] = midiSourceName(source);
+  doc["rxPin"] = rxPin;
+  String blob;
+  serializeJson(doc, blob);
+  if (!prefs.putString("midi-input", blob)) return false;
+  midiSource = source;
+  midiRxPin = rxPin;
   return true;
 }
 bool ConfigManager::reset() {

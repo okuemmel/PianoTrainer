@@ -1629,6 +1629,30 @@ test("61, 76 and 88 key profiles save the full MIDI range and retain one centere
   );
 });
 
+test("auto mapping spreads 82 physical LEDs evenly over 49 C2-C6 keys", async (t) => {
+  const s = await setup();
+  t.after(() => s.w.close());
+  const form = s.d.querySelector("#ledForm");
+  form.elements.count.value = "82";
+  form.elements.keys.value = "49";
+  form.elements.baseNote.value = "36";
+  s.d.querySelector("#autoMap").click();
+  assert.equal(s.d.querySelector('[data-note="36"]').value, "0");
+  assert.equal(s.d.querySelector('[data-note="60"]').value, "41");
+  assert.equal(s.d.querySelector('[data-note="84"]').value, "81");
+  assert.equal(s.d.querySelector('[data-note="35"]').value, "-1");
+  form.dispatchEvent(
+    new s.w.Event("submit", { bubbles: true, cancelable: true }),
+  );
+  await tick();
+  await tick();
+  const saved = s.calls.filter((c) => c.url === "/api/config" && c.body).at(-1);
+  assert.equal(saved.body.count, 82);
+  assert.equal(saved.body.mapping[36], 0);
+  assert.equal(saved.body.mapping[60], 41);
+  assert.equal(saved.body.mapping[84], 81);
+});
+
 test("language switches live without restarting practice, changing form values or sending MIDI", async (t) => {
   const s = await setup();
   t.after(() => s.dom.window.close());
@@ -2050,12 +2074,25 @@ test("MIDI diagnostics select a temporary S3 DIN input without changing the LED 
   assert.equal(rx.disabled, false);
   assert.match(
     s.d.querySelector("#midiInputStatus").textContent,
-    /Selection lasts until restart/,
+    /MIDI input saved and applied/,
   );
   await s.w.I18n.setLanguage("de");
   assert.match(
     s.d.querySelector("#midiDiagnostics").textContent,
     /MIDI-1-Schnittstelle erkannt/,
+  );
+  device.midi.usbSupported = true;
+  source.querySelector('[value="usb"]').disabled = false;
+  source.value = "usb";
+  source.dispatchEvent(new s.w.Event("change", { bubbles: true }));
+  s.calls.length = 0;
+  s.d
+    .querySelector("#midiInputForm")
+    .dispatchEvent(new s.w.Event("submit", { cancelable: true }));
+  for (let i = 0; i < 8; i++) await tick();
+  assert.deepEqual(
+    s.calls.find((call) => call.url === "/api/midi/input").body,
+    { source: "usb" },
   );
 });
 test("legacy C3 status keeps hardware input controls disabled while retaining virtual MIDI", async (t) => {

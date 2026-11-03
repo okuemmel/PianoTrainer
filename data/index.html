@@ -602,8 +602,8 @@
                   <label
                     >Instrument / Tastaturgröße<select id="keyboardLayout">
                       <option value="custom">Individueller Bereich</option>
-                      <option value="49" data-base="48">
-                        49 Tasten · C3–C7
+                      <option value="49" data-base="36">
+                        49 Tasten · C2–C6
                       </option>
                       <option value="61" data-base="36">
                         61 Tasten · C2–C7
@@ -933,9 +933,7 @@
                   >Eingangsquelle<select id="midiSource">
                     <option value="web">Virtuelle Tastatur</option>
                     <option value="din" disabled>DIN · UART</option>
-                    <option value="usb" disabled>
-                      USB · noch nicht aktiviert
-                    </option>
+                    <option value="usb" disabled>USB · MIDI</option>
                   </select></label
                 >
                 <label
@@ -943,10 +941,10 @@
                 ></label>
               </div>
               <p class="hint">
-                DIN benötigt einen Optokoppler am gewählten RX-Pin. Die Auswahl
-                gilt bis zum Neustart und pausiert eine laufende Übung. Der
-                OTraki-USB-Adapter benötigt den separaten USB-Host; er wird hier
-                noch nicht aktiviert.
+                DIN benötigt einen Optokoppler am gewählten RX-Pin. USB-MIDI
+                funktioniert mit einem USB-MIDI-1.0-Gerät am USB-OTG-Port.
+                Die Auswahl wird gespeichert und beim Neustart wiederhergestellt.
+                Ein Wechsel pausiert eine laufende Übung.
               </p>
               <button id="applyMidiInput" disabled>Eingang übernehmen</button>
             </form>
@@ -958,8 +956,8 @@
             <h2>Virtuelle Tastatur</h2>
             <p>
               Note On, Note Off, Velocity und mehrere gleichzeitige Noten werden
-              bereits verarbeitet. Ein echtes MIDI-Interface ist noch nicht
-              angeschlossen.
+              verarbeitet. USB-MIDI-Geräte können am S3 über den USB-OTG-Port
+              verbunden werden.
             </p>
             <form id="midiForm">
               <div class="fields">
